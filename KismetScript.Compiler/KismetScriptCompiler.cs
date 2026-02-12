@@ -87,7 +87,11 @@ public partial class KismetScriptCompiler
     /// <exception cref="UnexpectedSyntaxError"></exception>
     private void CompileScript(CompilationUnit compilationUnit, CompiledScriptContext script)
     {
+        // Populate imports from package declarations for standalone compilation
+        CompileImports(compilationUnit, script);
+
         foreach (var declaration in compilationUnit.Declarations
+            .Where(x => x is not PackageDeclaration)
             .Where(x => !x.Attributes.Any(x => x.Identifier.Text == "Import")))
         {
             if (declaration is ProcedureDeclaration procedureDeclaration)
@@ -109,6 +113,84 @@ public partial class KismetScriptCompiler
             else
             {
                 throw new UnexpectedSyntaxError(declaration);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Populates CompiledScriptContext.Imports from package declarations.
+    /// Each import statement generates a CompiledImportContext with the package symbol
+    /// and its declared symbols, enabling the linker to build the import table.
+    /// </summary>
+    private void CompileImports(CompilationUnit compilationUnit, CompiledScriptContext script)
+    {
+        // Group package declarations by path (multiple from-import blocks may reference the same package)
+        var packageGroups = new Dictionary<string, CompiledImportContext>();
+
+        foreach (var declaration in compilationUnit.Declarations)
+        {
+            string? packagePath = null;
+            List<Declaration>? importDeclarations = null;
+
+            if (declaration is PackageDeclaration packageDecl)
+            {
+                packagePath = packageDecl.Identifier.Text;
+                importDeclarations = packageDecl.Declarations;
+            }
+            else
+            {
+                var importAttrib = declaration.Attributes.FirstOrDefault(x => x.Identifier.Text == "Import");
+                if (importAttrib != null && importAttrib.Arguments.Count == 1)
+                {
+                    var pathLiteral = importAttrib.Arguments[0].Expression as StringLiteral;
+                    if (pathLiteral != null)
+                    {
+                        packagePath = pathLiteral.Value;
+                        importDeclarations = new List<Declaration> { declaration };
+                    }
+                }
+            }
+
+            if (packagePath == null || importDeclarations == null) continue;
+
+            // Find or create the import context for this package
+            if (!packageGroups.TryGetValue(packagePath, out var importCtx))
+            {
+                var packageSymbol = RootScope.GetSymbol<PackageSymbol>(packagePath);
+                if (packageSymbol == null) continue;
+                importCtx = new CompiledImportContext(packageSymbol);
+                packageGroups[packagePath] = importCtx;
+                script.Imports.Add(importCtx);
+            }
+
+            // Add each declaration's symbol to the import context
+            foreach (var decl in importDeclarations)
+            {
+                string? declName = decl switch
+                {
+                    ClassDeclaration cd => cd.Identifier.Text,
+                    VariableDeclaration vd => vd.Identifier.Text,
+                    ProcedureDeclaration pd => pd.Identifier.Text,
+                    EnumDeclaration ed => ed.Identifier.Text,
+                    _ => null
+                };
+
+                if (declName == null) continue;
+
+                var symbol = RootScope.GetSymbol(declName);
+                if (symbol == null) continue;
+
+                // Create the appropriate typed context based on the symbol type
+                CompiledDeclarationContext declCtx = symbol switch
+                {
+                    ClassSymbol cs => new CompiledDeclarationContext<ClassSymbol>(cs),
+                    VariableSymbol vs => new CompiledDeclarationContext<VariableSymbol>(vs),
+                    ProcedureSymbol ps => new CompiledDeclarationContext<ProcedureSymbol>(ps),
+                    EnumSymbol es => new CompiledDeclarationContext<EnumSymbol>(es),
+                    _ => new CompiledDeclarationContext<PackageSymbol>((PackageSymbol)symbol)
+                };
+
+                importCtx.Declarations.Add(declCtx);
             }
         }
     }
@@ -241,6 +323,19 @@ public partial class KismetScriptCompiler
         var packageImports = new List<(string PackagePath, List<Declaration> Declarations)>();
         foreach (var decl in compilationUnit.Declarations)
         {
+            // Handle "from ... import { ... }" syntax (PackageDeclaration)
+            if (decl is PackageDeclaration packageDecl)
+            {
+                var pkgPath = packageDecl.Identifier.Text;
+                var importedDeclarations = packageImports.Where(x => x.PackagePath == pkgPath).FirstOrDefault().Declarations;
+                if (importedDeclarations != null)
+                    importedDeclarations.AddRange(packageDecl.Declarations);
+                else
+                    packageImports.Add((pkgPath, new(packageDecl.Declarations)));
+                continue;
+            }
+
+            // Handle legacy [Import("path")] attribute syntax
             var importAttrib = decl.Attributes.FirstOrDefault(x => IsPackageImportAttribute(x));
             if (importAttrib != null)
             {
@@ -295,6 +390,7 @@ public partial class KismetScriptCompiler
         }
 
         foreach (var declaration in compilationUnit.Declarations
+            .Where(x => x is not PackageDeclaration)
             .Except(packageImports.SelectMany(x => x.Declarations)))
         {
             var declarationSymbol = CreateDeclarationSymbol(declaration, null, false);

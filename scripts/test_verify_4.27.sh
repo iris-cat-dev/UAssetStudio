@@ -3,11 +3,12 @@
 set -euo pipefail
 
 # Paths (adjust if your environment differs)
-ASSET_PATH="/Users/bytedance/Project/UAssetStudio/script/test_case_4_27/OC_PGL_MiniNukes_U.uasset"
+ASSET_PATH="/Users/bytedance/Project/UAssetStudio/scripts/original_assets/BoltActionRifle/Overclocks/OSB_M1000.uasset"
 USMAP_PATH=""  # Optional: set to a valid UE4.27 .usmap if needed
 REPO_ROOT="/Users/bytedance/Project/UAssetStudio"
 CLI_PROJ="$REPO_ROOT/UAssetStudio.Cli/UAssetStudio.Cli.csproj"
 OUTDIR="$REPO_ROOT/script/output"
+USE_META="--meta"
 
 # UE Version
 UE_VERSION="VER_UE4_27"
@@ -29,12 +30,15 @@ KMS_FILE="$OUTDIR/${FILENAME%.*}.kms"
 NEW_FILE="$OUTDIR/${FILENAME%.*}.new.uasset"
 
 echo "[Info] Running verify (UE4.27): decompile -> compile -> link -> write"
+if [[ -n "$USE_META" ]]; then
+  echo "[Info] Standalone compilation mode enabled (--meta)"
+fi
 if [[ -n "$USMAP_PATH" ]] && [[ -f "$USMAP_PATH" ]]; then
   echo "[Info] Using mappings: $USMAP_PATH"
-  dotnet run --project "$CLI_PROJ" -- verify "$ASSET_PATH" --ue-version "$UE_VERSION" --mappings "$USMAP_PATH" --outdir "$OUTDIR"
+  dotnet run --project "$CLI_PROJ" -- verify "$ASSET_PATH" --ue-version "$UE_VERSION" --mappings "$USMAP_PATH" --outdir "$OUTDIR" $USE_META
 else
   [[ -n "$USMAP_PATH" ]] && echo "[Warn] USMAP not found: $USMAP_PATH (continue without mappings)"
-  dotnet run --project "$CLI_PROJ" -- verify "$ASSET_PATH" --ue-version "$UE_VERSION" --outdir "$OUTDIR"
+  dotnet run --project "$CLI_PROJ" -- verify "$ASSET_PATH" --ue-version "$UE_VERSION" --outdir "$OUTDIR" $USE_META
 fi
 
 if [[ -f "$KMS_FILE" ]]; then

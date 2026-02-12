@@ -361,6 +361,17 @@ public class KismetScriptASTParser
 
         declaration = null;
 
+        // Parse package import statement (from "path" import { ... } or from "path" import decl;)
+        if (TryGet(context, context.packageImportStatement, out var packageImportContext))
+        {
+            PackageDeclaration packageDeclaration = null;
+            if (!TryFunc(packageImportContext, "Failed to parse package import", () => TryParsePackageImport(packageImportContext, out packageDeclaration)))
+                return false;
+
+            declaration = packageDeclaration;
+            return true;
+        }
+
         // Parse function declaration statement
         if (TryGet(context, context.procedureDeclarationStatement, out var procedureDeclarationContext))
         {
@@ -416,6 +427,44 @@ public class KismetScriptASTParser
             return false;
         }
 
+        return true;
+    }
+
+    private bool TryParsePackageImport(KismetScriptParser.PackageImportStatementContext context, out PackageDeclaration packageDeclaration)
+    {
+        LogContextInfo(context);
+
+        packageDeclaration = CreateAstNode<PackageDeclaration>(context);
+
+        // Parse the package path from the string literal
+        var stringLiteralNode = context.StringLiteral();
+        if (stringLiteralNode == null)
+        {
+            LogError(context, "Expected package path string literal");
+            return false;
+        }
+
+        var packagePath = stringLiteralNode.GetText();
+        // Remove surrounding quotes
+        packagePath = packagePath.Length >= 2 ? packagePath[1..^1] : packagePath;
+        packageDeclaration.Identifier = new Identifier(packagePath);
+
+        // Parse child declarations
+        var declarationContexts = context.declarationStatement();
+        if (declarationContexts != null)
+        {
+            foreach (var declContext in declarationContexts)
+            {
+                if (!TryParseDeclaration(declContext, out var declaration))
+                {
+                    LogError(declContext, "Failed to parse declaration inside package import");
+                    return false;
+                }
+                packageDeclaration.Declarations.Add(declaration);
+            }
+        }
+
+        LogTrace($"Parsed package import: {packageDeclaration}");
         return true;
     }
 

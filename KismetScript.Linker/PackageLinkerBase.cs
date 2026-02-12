@@ -98,7 +98,7 @@ public abstract partial class PackageLinker<T> where T : UnrealPackage
         var fstring = new FString(name);
         if (!Package.ContainsNameReference(fstring))
         {
-            Console.WriteLine($"[AddName] Adding new name to NameMap: '{name}'");
+            // Name will be added to NameMap automatically when FName is created
         }
         return new FName(Package, name);
     }

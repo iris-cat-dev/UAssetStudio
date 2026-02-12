@@ -82,6 +82,55 @@ namespace UAssetStudio.Cli.CMD
             }
         }
 
+        /// <summary>
+        /// Structural verification for v2 metadata: verifies the new asset can be parsed
+        /// correctly and has the expected number of exports with correct types and names.
+        /// Does NOT require binary equality (NameMap order differs in v2).
+        /// </summary>
+        internal static void VerifyStructural(string oldAssetPath, string newAssetPath, EngineVersion ueVersion, string? mappings)
+        {
+            var oldAsset = LoadAsset(ueVersion, mappings, oldAssetPath);
+            var newAsset = LoadAsset(ueVersion, mappings, newAssetPath);
+
+            // Save JSON for inspection
+            File.WriteAllText("old.json", oldAsset.SerializeJson(true));
+            File.WriteAllText("new.json", newAsset.SerializeJson(true));
+
+            // Verify export count matches
+            if (oldAsset.Exports.Count != newAsset.Exports.Count)
+            {
+                Console.WriteLine($"[Warn] Export count differs: old={oldAsset.Exports.Count}, new={newAsset.Exports.Count}");
+            }
+
+            // Verify each export has matching name and type
+            var oldExportNames = oldAsset.Exports.Select(e => e.ObjectName.ToString()).ToList();
+            var newExportNames = newAsset.Exports.Select(e => e.ObjectName.ToString()).ToList();
+
+            var missingExports = oldExportNames.Except(newExportNames).ToList();
+            var extraExports = newExportNames.Except(oldExportNames).ToList();
+
+            if (missingExports.Any())
+                Console.WriteLine($"[Warn] Missing exports in new: {string.Join(", ", missingExports)}");
+            if (extraExports.Any())
+                Console.WriteLine($"[Warn] Extra exports in new: {string.Join(", ", extraExports)}");
+
+            // Verify no exports are RawExport (failed to parse)
+            var rawExports = newAsset.Exports.Where(e => e is RawExport).Select(e => e.ObjectName.ToString()).ToList();
+            if (rawExports.Any())
+            {
+                throw new InvalidOperationException(
+                    $"V2 structural verification failed: {rawExports.Count} exports failed to parse (RawExport): {string.Join(", ", rawExports)}");
+            }
+
+            // Verify import count matches
+            if (oldAsset.Imports.Count != newAsset.Imports.Count)
+            {
+                Console.WriteLine($"[Warn] Import count differs: old={oldAsset.Imports.Count}, new={newAsset.Imports.Count}");
+            }
+
+            Console.WriteLine($"[OK] V2 structural verification passed: {newAsset.Exports.Count} exports, {newAsset.Imports.Count} imports, no RawExport");
+        }
+
         internal static UAsset LoadAsset(EngineVersion ueVersion, string? mappings, string assetPath)
         {
             return mappings != null

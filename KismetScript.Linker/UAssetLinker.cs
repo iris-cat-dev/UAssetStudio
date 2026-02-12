@@ -18,6 +18,12 @@ public partial class UAssetLinker : PackageLinker<UAsset>
 {
     private KmsMetadata? _metadata;
     private static KmsMetadata? _pendingMetadata;
+    /// <summary>
+    /// Tracks consumed export references for same-named exports.
+    /// When multiple exports share the same name (e.g., OverclockShematicItem_0),
+    /// this counter ensures each reference picks the next unconsumed instance.
+    /// </summary>
+    private readonly Dictionary<string, int> _exportReferenceCounter = new();
 
     public UAssetLinker()
     {
@@ -37,6 +43,7 @@ public partial class UAssetLinker : PackageLinker<UAsset>
 
     /// <summary>
     /// Creates a UAssetLinker from metadata (factory method).
+    /// Object exports will be built from the CompiledScriptContext during linking.
     /// </summary>
     public static UAssetLinker FromMetadata(KmsMetadata metadata)
     {
@@ -48,6 +55,9 @@ public partial class UAssetLinker : PackageLinker<UAsset>
 
     /// <summary>
     /// Creates a UAsset from metadata.
+    /// Only infrastructure exports (class, CDO, functions) are created here.
+    /// Object exports will be added during LinkCompiledScript from KMS data.
+    /// Imports are NOT built here — they're derived from KMS import statements at link time.
     /// </summary>
     private UAsset CreateAssetFromMetadata(KmsMetadata metadata)
     {
@@ -57,7 +67,7 @@ public partial class UAssetLinker : PackageLinker<UAsset>
             UsesEventDrivenLoader = metadata.Package.UsesEventDrivenLoader,
             Imports = new(),
             DependsMap = new(),
-            SoftPackageReferenceList = new(),
+            SoftPackageReferenceList = null,
             AssetRegistryData = new byte[] { 0, 0, 0, 0 },
             ValorantGarbageData = null,
             Generations = new(),
@@ -79,7 +89,7 @@ public partial class UAssetLinker : PackageLinker<UAsset>
                 Branch = null
             },
             ChunkIDs = Array.Empty<int>(),
-            PackageSource = 4048401688,
+            PackageSource = metadata.Package.PackageSource ?? 4048401688,
             FolderName = new("None"),
             IsUnversioned = metadata.Package.IsUnversioned,
             FileVersionLicenseeUE = 0,
@@ -89,38 +99,30 @@ public partial class UAssetLinker : PackageLinker<UAsset>
             Exports = new(),
             WorldTileInfo = null,
             PackageFlags = ParsePackageFlags(metadata.Package.Flags),
-            BulkData = Array.Empty<byte>(),
+            BulkData = !string.IsNullOrEmpty(metadata.Package.BulkData)
+                ? Convert.FromBase64String(metadata.Package.BulkData)
+                : Array.Empty<byte>(),
+            UseSeparateBulkDataFiles = metadata.Package.UsesEventDrivenLoader,
         };
 
         // Use reflection to set internal fields
         var bindingFlags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-
-        // Set AdditionalPackagesToCook
         var additionalPackagesField = typeof(UAsset).GetField("AdditionalPackagesToCook", bindingFlags);
         additionalPackagesField?.SetValue(asset, new List<FString>());
-
-        // Set doWeHaveWorldTileInfo to false since WorldTileInfo is null
         var worldTileInfoField = typeof(UAsset).GetField("doWeHaveWorldTileInfo", bindingFlags);
         worldTileInfoField?.SetValue(asset, false);
 
-        // Initialize name map from metadata BEFORE creating imports/exports
-        // This is critical - names must exist before they can be referenced
-        if (metadata.NameMap != null && metadata.NameMap.Count > 0)
-        {
-            asset.ClearNameIndexList();
-            foreach (var name in metadata.NameMap)
-            {
-                asset.AddNameReference(new FString(name), forceAddDuplicates: true);
-            }
-        }
+        // Initialize empty NameMap — names will be added dynamically as FNames are created
+        asset.ClearNameIndexList();
 
-        // Build imports from metadata
-        BuildImports(asset, metadata.Imports);
+        // Imports are NOT built here — they will be derived from KMS import statements
+        // in BuildImportsFromKms() during LinkCompiledScript.
 
-        // Build exports from metadata
-        BuildExports(asset, metadata.Exports);
+        // Build ONLY infrastructure exports (class, CDO, functions)
+        BuildExports(asset, metadata.InfrastructureExports);
 
-        // Initialize DependsMap for each export
+        // DependsMap and Generations will be finalized in Build()
+        // after object exports are added from KMS
         for (int i = 0; i < asset.Exports.Count; i++)
         {
             asset.DependsMap.Add(Array.Empty<int>());
@@ -183,22 +185,6 @@ public partial class UAssetLinker : PackageLinker<UAsset>
         }
 
         return result;
-    }
-
-    private static void BuildImports(UAsset asset, List<ImportMetadata> imports)
-    {
-        foreach (var importMeta in imports.OrderBy(x => -x.Index))  // Order by index (most negative first)
-        {
-            var import = new Import
-            {
-                ObjectName = GetExistingFName(asset, importMeta.ObjectName),
-                ClassName = GetExistingFName(asset, importMeta.ClassName),
-                ClassPackage = GetExistingFName(asset, importMeta.ClassPackage),
-                OuterIndex = new FPackageIndex(importMeta.OuterIndex),
-                bImportOptional = importMeta.BImportOptional ?? false
-            };
-            asset.Imports.Add(import);
-        }
     }
 
     private static void BuildExports(UAsset asset, List<ExportMetadata> exports)
@@ -266,6 +252,10 @@ public partial class UAssetLinker : PackageLinker<UAsset>
         export.SuperIndex = new FPackageIndex(exportMeta.SuperIndex ?? 0);
         export.TemplateIndex = new FPackageIndex(exportMeta.TemplateIndex ?? 0);
         export.ObjectFlags = ParseObjectFlags(exportMeta.ObjectFlags);
+
+        // Restore export flags
+        export.bNotAlwaysLoadedForEditorGame = exportMeta.BNotAlwaysLoadedForEditorGame ?? false;
+        export.bIsAsset = exportMeta.BIsAsset ?? false;
 
         // Set ClassIndex based on className
         export.ClassIndex = FindOrCreateClassImport(asset, exportMeta.ClassName);
@@ -604,8 +594,148 @@ public partial class UAssetLinker : PackageLinker<UAsset>
         return FPackageIndex.FromImport(Package.Imports.IndexOf(import));
     }
 
+    /// <summary>
+    /// Builds the import table from KMS import declarations and ClassPackages metadata.
+    /// Each KMS import statement like:
+    ///   from "/Script/FSD" import { class OverclockBank; OverclockBank Default__OverclockBank; }
+    /// generates:
+    ///   1. Package import: /Script/FSD (ClassName=Package, ClassPackage=/Script/CoreUObject)
+    ///   2. Object import: OverclockBank (ClassName=Class, ClassPackage=/Script/CoreUObject, OuterIndex→/Script/FSD)
+    ///   3. Object import: Default__OverclockBank (ClassName=OverclockBank, ClassPackage=/Script/FSD, OuterIndex→/Script/FSD)
+    /// </summary>
+    private void BuildImportsFromKms(CompiledScriptContext scriptContext)
+    {
+        if (_metadata == null) return;
+
+        // Determine which classes need actual Class import entries.
+        // Only classes that are referenced by FPackageIndex in exports need Class imports.
+        // Classes used only as ClassName strings in Import entries (e.g., CarvedResourceData
+        // used as ClassName for imported objects) do NOT need separate Class import entries.
+        var referencedClassNames = new HashSet<string>();
+
+        // Classes referenced by KMS object declarations (exported objects reference their class by FPackageIndex)
+        foreach (var obj in scriptContext.Objects)
+        {
+            if (!string.IsNullOrEmpty(obj.ClassName))
+                referencedClassNames.Add(obj.ClassName);
+        }
+
+        // Classes defined in KMS class declarations
+        foreach (var cls in scriptContext.Classes)
+        {
+            if (!string.IsNullOrEmpty(cls.Symbol?.Name))
+                referencedClassNames.Add(cls.Symbol.Name);
+        }
+
+        // Classes referenced by infrastructure exports (ClassExport, CDO, functions)
+        foreach (var exp in _metadata.InfrastructureExports)
+        {
+            if (!string.IsNullOrEmpty(exp.ClassName))
+                referencedClassNames.Add(exp.ClassName);
+        }
+
+        foreach (var importCtx in scriptContext.Imports)
+        {
+            var packagePath = importCtx.Symbol.Name; // e.g., "/Script/FSD" or "/Game/WeaponsNTools/..."
+
+            // Create Package import
+            var packageImport = new Import
+            {
+                ObjectName = new FName(Package, packagePath),
+                ClassName = new FName(Package, "Package"),
+                ClassPackage = new FName(Package, "/Script/CoreUObject"),
+                OuterIndex = new FPackageIndex(0),
+                bImportOptional = false
+            };
+            Package.Imports.Add(packageImport);
+            var packageIndex = FPackageIndex.FromImport(Package.Imports.Count - 1);
+
+            // Create object imports for each declaration in this package
+            foreach (var decl in importCtx.Declarations)
+            {
+                var objectName = decl.Symbol.Name;
+                string className;
+                string classPackage;
+
+                if (decl.Symbol is ClassSymbol)
+                {
+                    // Only create Class import if this class is actually referenced by
+                    // exports or Default__ objects (needs FPackageIndex-based reference).
+                    // Classes only used as ClassName strings don't need import entries.
+                    if (!referencedClassNames.Contains(objectName))
+                        continue;
+
+                    // class OverclockBank; → ClassName="Class", ClassPackage="/Script/CoreUObject"
+                    className = "Class";
+                    classPackage = "/Script/CoreUObject";
+                }
+                else if (decl.Symbol is VariableSymbol varSymbol)
+                {
+                    // OverclockBank Default__OverclockBank; → ClassName="OverclockBank", ClassPackage from metadata
+                    // Get the class name from the variable's type, not its declaring class
+                    className = varSymbol.InnerSymbol?.Name
+                        ?? varSymbol.Declaration?.Type?.Text
+                        ?? "Object";
+
+                    // Look up the class package from ClassPackages metadata
+                    if (_metadata.ClassPackages.TryGetValue(className, out var pkg))
+                    {
+                        classPackage = pkg;
+                    }
+                    else
+                    {
+                        // Fallback: use the package path itself as classPackage
+                        classPackage = packagePath;
+                    }
+                }
+                else if (decl.Symbol is ProcedureSymbol procSymbol)
+                {
+                    // Imported function → ClassName="Function", ClassPackage="/Script/CoreUObject"
+                    className = "Function";
+                    classPackage = "/Script/CoreUObject";
+                }
+                else if (decl.Symbol is EnumSymbol)
+                {
+                    // Imported enum → ClassName="Enum", ClassPackage="/Script/CoreUObject"
+                    className = "Enum";
+                    classPackage = "/Script/CoreUObject";
+                }
+                else
+                {
+                    // Generic fallback
+                    className = decl.Symbol.DeclaringClass?.Name ?? "Object";
+
+                    if (_metadata.ClassPackages.TryGetValue(className, out var pkg))
+                    {
+                        classPackage = pkg;
+                    }
+                    else
+                    {
+                        classPackage = packagePath;
+                    }
+                }
+
+                var objectImport = new Import
+                {
+                    ObjectName = new FName(Package, objectName),
+                    ClassName = new FName(Package, className),
+                    ClassPackage = new FName(Package, classPackage),
+                    OuterIndex = packageIndex,
+                    bImportOptional = false
+                };
+                Package.Imports.Add(objectImport);
+            }
+        }
+    }
+
     public override UAssetLinker LinkCompiledScript(CompiledScriptContext scriptContext)
     {
+        // Metadata mode: build imports from KMS import declarations before any linking
+        if (_metadata != null)
+        {
+            BuildImportsFromKms(scriptContext);
+        }
+
         foreach (var functionContext in scriptContext.Functions)
         {
             LinkCompiledFunction(functionContext);
@@ -654,13 +784,102 @@ public partial class UAssetLinker : PackageLinker<UAsset>
             LinkClassCDO(classExport, classContext, scriptContext.Objects);
         }
 
+        // Metadata mode: create object exports from KMS declarations before linking
+        if (_metadata != null)
+        {
+            CreateObjectExportsFromKms(scriptContext.Objects);
+        }
+
         // Link top-level objects (non-CDO objects)
+        // Track already-linked exports to handle same-named objects (e.g., multiple OverclockShematicItem_0)
+        var linkedExports = new HashSet<NormalExport>();
         foreach (var objectContext in scriptContext.Objects)
         {
-            LinkTopLevelObject(objectContext);
+            LinkTopLevelObject(objectContext, linkedExports);
         }
 
         return this;
+    }
+
+    /// <summary>
+    /// Metadata mode: Creates NormalExport entries for each object declaration in KMS.
+    /// The export ordering follows the KMS declaration order within the asset's export table.
+    /// </summary>
+    private void CreateObjectExportsFromKms(List<CompiledObjectContext> objects)
+    {
+        if (_metadata == null) return;
+
+        // Group objects: first parent objects (e.g., OSB_M1000), then their children in declaration order
+        // The KMS already has them in the correct order (parent first, child after)
+        var firstExportIndex = Package.Exports.Count; // Infrastructure exports already placed
+
+        foreach (var objCtx in objects)
+        {
+            _metadata.ObjectDefaults.TryGetValue(objCtx.ClassName, out var classDefaults);
+
+            // Parse object flags from class defaults
+            var objectFlags = EObjectFlags.RF_NoFlags;
+            if (classDefaults?.ObjectFlags != null)
+            {
+                foreach (var flagStr in classDefaults.ObjectFlags)
+                {
+                    if (Enum.TryParse<EObjectFlags>(flagStr, out var flag))
+                        objectFlags |= flag;
+                }
+            }
+
+            var export = new NormalExport(Package, Array.Empty<byte>())
+            {
+                Data = new List<PropertyData>(),
+                ObjectName = new FName(Package, objCtx.Name),
+                OuterIndex = GetOuterIndexForObject(objCtx),
+                SuperIndex = new FPackageIndex(0),
+                TemplateIndex = GetTemplateIndexForObject(objCtx, classDefaults),
+                ClassIndex = FindOrCreateClassImport(Package, objCtx.ClassName),
+                ObjectFlags = objectFlags,
+                bNotAlwaysLoadedForEditorGame = classDefaults?.BNotAlwaysLoadedForEditorGame ?? false,
+                bIsAsset = classDefaults?.BIsAsset ?? false,
+            };
+
+            Package.Exports.Add(export);
+            Package.DependsMap.Add(Array.Empty<int>());
+        }
+    }
+
+    /// <summary>
+    /// Determines the OuterIndex for an object based on its position in the KMS.
+    /// Most top-level objects have the main OSB/package export as their outer.
+    /// Sub-objects (like OverclockShematicItem_0) have their parent SCE export as outer.
+    /// </summary>
+    private FPackageIndex GetOuterIndexForObject(CompiledObjectContext objCtx)
+    {
+        // For metadata mode, find the first export (usually the OSB/main export) as the default outer
+        // Sub-object relationships are preserved: if an export's outer should be another export,
+        // this is determined by the object declaration order in KMS.
+        // Simple heuristic: export[0] (first infrastructure export) is the default outer for top-level objects.
+        if (Package.Exports.Count > 0)
+        {
+            return new FPackageIndex(1); // First export (1-based) as outer
+        }
+        return new FPackageIndex(0);
+    }
+
+    /// <summary>
+    /// Gets the template index for an object from class defaults.
+    /// </summary>
+    private FPackageIndex GetTemplateIndexForObject(CompiledObjectContext objCtx, ObjectClassDefaults? classDefaults)
+    {
+        if (classDefaults?.TemplateClassName != null)
+        {
+            // Find or create import for the template (e.g., Default__Schematic)
+            var templateImports = GetPackageIndexByLocalName(classDefaults.TemplateClassName);
+            var templateImport = templateImports?.FirstOrDefault();
+            if (templateImport != null)
+            {
+                return templateImport.Value.PackageIndex;
+            }
+        }
+        return new FPackageIndex(0);
     }
 
     /// <summary>
@@ -752,16 +971,22 @@ public partial class UAssetLinker : PackageLinker<UAsset>
 
     /// <summary>
     /// Links a top-level object export, populating its Data with property values.
+    /// Uses linkedExports set to skip already-populated exports when multiple exports share the same name
+    /// (e.g., multiple "OverclockShematicItem_0" with different OuterIndex).
     /// </summary>
-    private void LinkTopLevelObject(CompiledObjectContext objectContext)
+    private void LinkTopLevelObject(CompiledObjectContext objectContext, HashSet<NormalExport>? linkedExports = null)
     {
-        // Find existing top-level object export
+        // Find existing top-level object export, skipping already-linked ones
         var objectExport = Package.Exports
             .OfType<NormalExport>()
-            .FirstOrDefault(x => x.ObjectName.ToString() == objectContext.Name);
+            .FirstOrDefault(x => x.ObjectName.ToString() == objectContext.Name &&
+                                 (linkedExports == null || !linkedExports.Contains(x)));
 
         if (objectExport == null)
             return; // Object doesn't exist, nothing to update
+
+        // Mark as linked
+        linkedExports?.Add(objectExport);
 
         // Initialize Data (or reuse existing list)
         objectExport.Data ??= new List<PropertyData>();
@@ -1024,8 +1249,8 @@ public partial class UAssetLinker : PackageLinker<UAsset>
                 };
             }
 
-            var results = GetPackageIndexByLocalName(value.ObjectReference);
-            if (results == null || !results.Any())
+            var results = GetPackageIndexByLocalName(value.ObjectReference)?.ToList();
+            if (results == null || results.Count == 0)
             {
                 // Object not found - try to find it in the compiled script context and create an import
                 // This handles cases where user adds new object references not in the original asset
@@ -1037,9 +1262,53 @@ public partial class UAssetLinker : PackageLinker<UAsset>
                 }
                 return new ObjectPropertyData(fname) { Value = packageIndex };
             }
+
+            // When multiple exports share the same name (e.g., multiple OverclockShematicItem_0),
+            // use a round-robin counter to pick the next unconsumed instance
+            if (results.Count > 1 && _metadata != null)
+            {
+                _exportReferenceCounter.TryGetValue(value.ObjectReference, out var counter);
+                var index = counter % results.Count;
+                _exportReferenceCounter[value.ObjectReference] = counter + 1;
+                return new ObjectPropertyData(fname) { Value = results[index].PackageIndex };
+            }
+
             var result = results.First();
             return new ObjectPropertyData(fname) { Value = result.PackageIndex };
         }
+        // Handle map types: {key: value} syntax with typeHint "Object" (untyped map)
+        // or explicit Map<K,V> type hint. StructValue dictionary represents key-value pairs.
+        if (value.StructValue != null && !typeHint.StartsWith("Struct<"))
+        {
+            var mapProp = new MapPropertyData(fname);
+            var mapData = new TMap<PropertyData, PropertyData>();
+
+            foreach (var kvp in value.StructValue)
+            {
+                // Create key PropertyData (object reference)
+                var keyProp = CreatePropertyDataFromValue(name, "Object", new CompiledPropertyValue { ObjectReference = kvp.Key },
+                    FName.DefineDummy(Package, name, int.MinValue));
+
+                // Create value PropertyData (could be object reference or literal)
+                PropertyData? valProp;
+                if (kvp.Value.IntValue.HasValue)
+                {
+                    valProp = new IntPropertyData(FName.DefineDummy(Package, name, int.MinValue)) { Value = kvp.Value.IntValue.Value };
+                }
+                else
+                {
+                    valProp = CreatePropertyDataFromValue(name, "Object", kvp.Value,
+                        FName.DefineDummy(Package, name, int.MinValue));
+                }
+
+                if (keyProp != null && valProp != null)
+                    mapData.Add(keyProp, valProp);
+            }
+
+            mapProp.Value = mapData;
+            return mapProp;
+        }
+
         // Handle struct types - must be checked before ArrayValue since {} compiles as empty array
         if (typeHint.StartsWith("Struct<") && typeHint.EndsWith(">") &&
             (value.ArrayValue != null || value.StructValue != null))
@@ -1051,6 +1320,23 @@ public partial class UAssetLinker : PackageLinker<UAsset>
                 Value = new List<PropertyData>(),
                 SerializeNone = true,
             };
+
+            // Handle Guid structs with custom serialization:
+            // The KMS format stores Guid as { SaveGameID: "{guid-string}" }
+            // but UAssetAPI expects a GuidPropertyData with 16-byte raw serialization
+            if (structTypeName == "Guid" && value.StructValue != null)
+            {
+                // Extract the Guid string from the first (and only) field value
+                var guidString = value.StructValue.Values.FirstOrDefault()?.StringValue;
+                if (guidString != null)
+                {
+                    // Remove curly braces if present: {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}
+                    var guidValue = Guid.Parse(guidString.Trim('{', '}'));
+                    var guidProp = new GuidPropertyData(fname) { Value = guidValue };
+                    structProp.Value.Add(guidProp);
+                    return structProp;
+                }
+            }
 
             // If there are struct field values (from {key: value} syntax), populate them
             if (value.StructValue != null)
@@ -1257,13 +1543,21 @@ public partial class UAssetLinker : PackageLinker<UAsset>
     {
         // Ensure all property type names used in export data are in the name map
         // before serialization time (when AddNameReference is locked).
-        // This is necessary because the linker may create new PropertyData instances
-        // whose type names (e.g., "StrProperty", "IntProperty") are not in the
-        // original asset's name map.
+        // In metadata mode, NameMap is built dynamically, so we DO add type names.
         if (!Package.HasUnversionedProperties)
         {
             EnsurePropertyTypeNamesInNameMap();
         }
+
+        // Metadata mode: finalize Generations after all exports are added
+        if (_metadata != null)
+        {
+            Package.Generations.Clear();
+            Package.Generations.Add(new FGenerationInfo(
+                Package.Exports.Count,
+                Package.GetNameMapIndexList().Count));
+        }
+
         return Package;
     }
 
@@ -1414,6 +1708,7 @@ public partial class UAssetLinker : PackageLinker<UAsset>
     /// <summary>
     /// Creates an FName that looks up the existing name in NameMap without adding a new entry.
     /// Used in metadata mode where NameMap is pre-populated.
+    /// Handles FName number suffixes (e.g., "SCE_M1000_Ammo__1182618035" -> base "SCE_M1000_Ammo_" + Number=1182618036).
     /// Falls back to standard FName creation if name is not found (for safety).
     /// </summary>
     private static FName GetExistingFName(UAsset asset, string name)
@@ -1424,6 +1719,21 @@ public partial class UAssetLinker : PackageLinker<UAsset>
             var index = asset.SearchNameReference(fstring);
             return new FName(asset, index, 0);
         }
+
+        // Check for FName number suffix pattern (e.g., "_0", "_1182618035")
+        // UE4 stores these as BaseName + Number, where NameMap only contains BaseName
+        var idSuffixMatch = NameIdSuffix().Match(name);
+        if (idSuffixMatch?.Success ?? false)
+        {
+            var nameWithoutSuffix = name[..^idSuffixMatch.Length];
+            var baseFString = new FString(nameWithoutSuffix);
+            if (asset.ContainsNameReference(baseFString) && int.TryParse(idSuffixMatch.Groups[1].Value, out var id))
+            {
+                var baseIndex = asset.SearchNameReference(baseFString);
+                return new FName(asset, baseIndex, id + 1);
+            }
+        }
+
         // Fallback - name doesn't exist, use normal creation
         return new FName(asset, name);
     }
@@ -1461,20 +1771,6 @@ public partial class UAssetLinker : PackageLinker<UAsset>
     /// </summary>
     private FPackageIndex TryCreateImportForReference(string objectName, string typeHint)
     {
-        // Check if this object is already imported through KMS imports
-        // The imports should have been processed during script compilation
-        // We need to find the full path for this object from the compiled context
-
-        // For now, try to infer the import path from KMS file structure
-        // Object names in KMS that reference game content follow pattern: ObjectName
-        // Full paths follow pattern: /Game/Path/To/ObjectName.ObjectName
-
-        // Try to use EnsurePackageImported and EnsureObjectImported to create the import
-        // First, we need to extract the package path from context
-
-        // Since we don't have the full path here, we'll need to look it up from the original KMS imports
-        // For objects like UPC_ChargeModeSpread, check if there's a declaration in the source
-
         // Extract class name from typeHint like "Object<ItemUpgradeCategory>"
         string className = "Package";
         if (typeHint.StartsWith("Object<") && typeHint.EndsWith(">"))
@@ -1527,6 +1823,6 @@ public partial class UAssetLinker : PackageLinker<UAsset>
         return current.ObjectName.ToString();
     }
 
-    [GeneratedRegex("_(\\d+)")]
+    [GeneratedRegex("_(\\d+)$")]
     private static partial Regex NameIdSuffix();
 }

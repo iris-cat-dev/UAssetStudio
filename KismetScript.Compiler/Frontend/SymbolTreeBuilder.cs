@@ -131,6 +131,19 @@ public class SymbolTreeBuilder
         var packageImports = new List<(string PackagePath, List<Declaration> Declarations)>();
         foreach (var decl in compilationUnit.Declarations)
         {
+            // Handle "from ... import { ... }" syntax (PackageDeclaration)
+            if (decl is PackageDeclaration packageDecl)
+            {
+                var pkgPath = packageDecl.Identifier.Text;
+                var importedDeclarations = packageImports.Where(x => x.PackagePath == pkgPath).FirstOrDefault().Declarations;
+                if (importedDeclarations != null)
+                    importedDeclarations.AddRange(packageDecl.Declarations);
+                else
+                    packageImports.Add((pkgPath, new(packageDecl.Declarations)));
+                continue;
+            }
+
+            // Handle legacy [Import("path")] attribute syntax
             var importAttrib = decl.Attributes.FirstOrDefault(x => IsPackageImportAttribute(x));
             if (importAttrib != null)
             {
@@ -178,7 +191,9 @@ public class SymbolTreeBuilder
                 rootScope.DeclareSymbol(symbol);
         }
 
-        foreach (var declaration in compilationUnit.Declarations.Except(packageImports.SelectMany(x => x.Declarations)))
+        foreach (var declaration in compilationUnit.Declarations
+            .Where(x => x is not PackageDeclaration)
+            .Except(packageImports.SelectMany(x => x.Declarations)))
         {
             var declarationSymbol = CreateDeclarationSymbol(declaration, null, false);
             if (declarationSymbol == null)

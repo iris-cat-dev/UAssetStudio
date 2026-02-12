@@ -51,7 +51,7 @@ namespace UAssetStudio.Cli.CMD
                         Console.WriteLine($"Error: Failed to parse metadata file {metaPath}");
                         return;
                     }
-                    linker = new UAssetLinker(metadata);
+                    linker = UAssetLinker.FromMetadata(metadata);
                 }
                 else if (hasOriginalAsset)
                 {

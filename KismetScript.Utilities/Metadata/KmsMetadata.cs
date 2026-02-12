@@ -2,20 +2,102 @@ namespace KismetScript.Utilities.Metadata;
 
 /// <summary>
 /// Root metadata class for .kms.meta files.
-/// Contains all information needed to compile a .kms script independently.
+/// KMS drives object content, metadata provides structural context.
+/// - Imports: derived from KMS import statements + ClassPackages at link time
+/// - Infrastructure exports (class, CDO, functions): kept in metadata
+/// - Object exports: derived from KMS object declarations (adding/removing objects in KMS → changes in .uasset)
+/// - NameMap: built dynamically from all used names
 /// </summary>
 public class KmsMetadata
 {
-    public int Version { get; set; } = 1;
+    public int Version { get; set; } = 2;
     public DateTime? Generated { get; set; }
     public string? SourceAsset { get; set; }
     public PackageMetadata Package { get; set; } = new();
     public EngineVersionMetadata EngineVersion { get; set; } = new();
-    public List<ImportMetadata> Imports { get; set; } = new();
-    public List<ExportMetadata> Exports { get; set; } = new();
+
+    /// <summary>
+    /// Infrastructure exports only: class, CDO, and function exports.
+    /// Object exports are NOT stored here — they're derived from KMS object declarations.
+    /// </summary>
+    public List<ExportMetadata> InfrastructureExports { get; set; } = new();
+
+    /// <summary>
+    /// Maps class names to their /Script/ package paths.
+    /// E.g., { "CarvedResourceData": "/Script/FSD", "Package": "/Script/CoreUObject" }
+    /// Used for import table ClassPackage fields when creating new imports.
+    /// </summary>
+    public Dictionary<string, string> ClassPackages { get; set; } = new();
+
+    /// <summary>
+    /// Per-class defaults for object exports created from KMS.
+    /// Keyed by the class name used in KMS object declarations.
+    /// </summary>
+    public Dictionary<string, ObjectClassDefaults> ObjectDefaults { get; set; } = new();
+
+    /// <summary>
+    /// Field path metadata for property pointer resolution.
+    /// </summary>
     public Dictionary<string, Dictionary<string, FieldPathMetadata>> FieldPaths { get; set; } = new();
+
+    /// <summary>
+    /// CDO metadata.
+    /// </summary>
     public Dictionary<string, CdoMetadata> CdoData { get; set; } = new();
-    public List<string>? NameMap { get; set; }
+}
+
+/// <summary>
+/// Per-class defaults for objects of this class type.
+/// Applied when creating export entries from KMS object declarations.
+/// </summary>
+public class ObjectClassDefaults
+{
+    /// <summary>
+    /// Default object flags for instances of this class.
+    /// </summary>
+    public List<string>? ObjectFlags { get; set; }
+
+    public bool? BNotAlwaysLoadedForEditorGame { get; set; }
+    public bool? BIsAsset { get; set; }
+
+    /// <summary>
+    /// The class name for the template import (Default__ClassName).
+    /// </summary>
+    public string? TemplateClassName { get; set; }
+
+    /// <summary>
+    /// Property serialization hints for properties of this class.
+    /// Keyed by property name, provides type info that KMS syntax cannot capture.
+    /// </summary>
+    public Dictionary<string, PropertySerializationMeta>? PropertyMeta { get; set; }
+}
+
+/// <summary>
+/// Serialization metadata for a specific property.
+/// Provides type information that the KMS syntax cannot express,
+/// such as MapProperty key/value types or StructProperty custom struct types.
+/// </summary>
+public class PropertySerializationMeta
+{
+    /// <summary>
+    /// The UE property type name (e.g., "MapProperty", "StructProperty", "ObjectProperty").
+    /// </summary>
+    public string? Type { get; set; }
+
+    /// <summary>
+    /// For MapProperty: the key type (e.g., "ObjectProperty").
+    /// </summary>
+    public string? KeyType { get; set; }
+
+    /// <summary>
+    /// For MapProperty: the value type (e.g., "IntProperty").
+    /// </summary>
+    public string? ValueType { get; set; }
+
+    /// <summary>
+    /// For StructProperty: the struct type name (e.g., "Guid", "Vector").
+    /// </summary>
+    public string? StructType { get; set; }
 }
 
 /// <summary>
@@ -29,6 +111,11 @@ public class PackageMetadata
     public int LegacyFileVersion { get; set; } = -7;
     public bool UsesEventDrivenLoader { get; set; } = true;
     public bool IsUnversioned { get; set; } = true;
+    public uint? PackageSource { get; set; }
+    /// <summary>
+    /// Base64 encoded BulkData (package checksum bytes).
+    /// </summary>
+    public string? BulkData { get; set; }
 }
 
 /// <summary>
@@ -69,6 +156,8 @@ public class ExportMetadata
     public List<string>? FunctionFlags { get; set; }
     public List<string>? ClassFlags { get; set; }
     public bool? IsCDO { get; set; }
+    public bool? BNotAlwaysLoadedForEditorGame { get; set; }
+    public bool? BIsAsset { get; set; }
     public ExportDependencies? Dependencies { get; set; }
     /// <summary>
     /// Base64 encoded extra binary data for the export.

@@ -10,7 +10,7 @@ set -euo pipefail
 # ==============================================================================
 
 # Configuration
-ASSET_DIR="/Users/bytedance/Project/FSD1"
+ASSET_DIR="/Users/bytedance/Project/UAssetStudio/scripts/original_assets"
 USMAP_PATH=""  # Optional: set to a valid UE4.27 .usmap if needed
 REPO_ROOT="/Users/bytedance/Project/UAssetStudio"
 CLI_PROJ="$REPO_ROOT/UAssetStudio.Cli/UAssetStudio.Cli.csproj"
@@ -18,6 +18,9 @@ OUTDIR="$REPO_ROOT/script/output"
 
 # UE Version
 UE_VERSION="VER_UE4_27"
+
+# Standalone compilation mode (generates .kms.meta for compilation without original asset)
+USE_META="--meta"
 
 # Parallel processing settings
 MAX_JOBS="${1:-4}"
@@ -46,6 +49,9 @@ echo "========================================"
 echo "[Info] Asset directory: $ASSET_DIR"
 echo "[Info] Output directory: $OUTDIR"
 echo "[Info] Parallel jobs: $MAX_JOBS"
+if [[ -n "$USE_META" ]]; then
+  echo "[Info] Standalone compilation mode enabled (--meta)"
+fi
 echo ""
 
 # Check if asset directory exists
@@ -130,11 +136,13 @@ process_asset() {
       --ue-version "$UE_VERSION" \
       --mappings "$USMAP_PATH" \
       --outdir "$OUTDIR" \
+      $USE_META \
       > "$LOG_FILE" 2>&1 || RESULT=$?
   else
     dotnet run --no-build --project "$CLI_PROJ" -- verify "$ASSET_PATH" \
       --ue-version "$UE_VERSION" \
       --outdir "$OUTDIR" \
+      $USE_META \
       > "$LOG_FILE" 2>&1 || RESULT=$?
   fi
 
@@ -144,10 +152,11 @@ process_asset() {
   printf "[%3d/%3d] Processing: %-60s" "$INDEX" "$TOTAL" "$REL_PATH"
 
   # Check result: try UTF-8 first (macOS/Linux), then UTF-16LE (Windows)
+  # Use "Verified" without colon to match both "Verified:" and "Verified (structural):"
   local VERIFIED=false
-  if grep -q "Verified:" "$LOG_FILE" 2>/dev/null; then
+  if grep -q "Verified" "$LOG_FILE" 2>/dev/null; then
     VERIFIED=true
-  elif iconv -f UTF-16LE -t UTF-8 "$LOG_FILE" 2>/dev/null | grep -q "Verified:"; then
+  elif iconv -f UTF-16LE -t UTF-8 "$LOG_FILE" 2>/dev/null | grep -q "Verified"; then
     VERIFIED=true
   fi
 

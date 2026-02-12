@@ -38,12 +38,18 @@ compoundStatement
 // Declaration statements
 //
 declarationStatement
-	: procedureDeclarationStatement
+	: packageImportStatement
+	| procedureDeclarationStatement
 	| variableDeclarationStatement
 	| enumTypeDeclarationStatement
 	| labelDeclarationStatement
 	| classDeclarationStatement
 	| objectDeclarationStatement
+	;
+
+packageImportStatement
+	: From StringLiteral Import '{' declarationStatement* '}'
+	| From StringLiteral Import declarationStatement
 	;
 
 namespaceIdentifier

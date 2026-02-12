@@ -12,7 +12,7 @@ namespace UAssetStudio.Cli.CMD
         {
             var assetArg = new Argument<string>("asset", description: "Path to asset (.uasset/.umap)");
             var outdirOpt = new Option<string?>("--outdir", description: "Output directory; default = asset directory");
-            var metaOpt = new Option<bool>("--meta", () => false, "Generate .kms.meta file during verification");
+            var metaOpt = new Option<bool>("--meta", () => false, "Generate .kms.meta file and use standalone compilation");
             var verify = new Command("verify", "Decompile asset to .kms, recompile, link, and write .new.uasset")
             {
                 assetArg,
@@ -58,9 +58,9 @@ namespace UAssetStudio.Cli.CMD
                 UAssetLinker linker;
                 if (generateMeta && metadata != null)
                 {
-                    // Use metadata-based linker for verification (standalone mode)
+                    // Standalone: imports from KMS, object exports from KMS, infrastructure from metadata
                     linker = UAssetLinker.FromMetadata(metadata);
-                    Console.WriteLine("Using metadata for linking");
+                    Console.WriteLine("Using metadata for linking (KMS-driven imports & exports)");
                 }
                 else
                 {
@@ -76,9 +76,19 @@ namespace UAssetStudio.Cli.CMD
                 var outFile = Path.Join(dir, Path.GetFileName(Path.ChangeExtension(assetPath, ".new.uasset")));
                 newAsset.Write(outFile);
 
-                // 6) Old vs new verification: compare full JSON via file paths
-                CliHelpers.VerifyOldAndNew(assetPath, outFile, ver, mapPath);
-                Console.WriteLine($"Verified: {assetPath} -> {kmsPath} -> {outFile}");
+                // 6) Verification
+                if (generateMeta)
+                {
+                    // Structural verification (NameMap order differs, no binary equality expected)
+                    CliHelpers.VerifyStructural(assetPath, outFile, ver, mapPath);
+                    Console.WriteLine($"Verified (structural): {assetPath} -> {kmsPath} -> {outFile}");
+                }
+                else
+                {
+                    // Normal: exact JSON comparison for binary equality
+                    CliHelpers.VerifyOldAndNew(assetPath, outFile, ver, mapPath);
+                    Console.WriteLine($"Verified: {assetPath} -> {kmsPath} -> {outFile}");
+                }
 
             }, ueVersion, mappings, assetArg, outdirOpt, metaOpt);
 
