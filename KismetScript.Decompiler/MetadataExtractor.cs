@@ -40,6 +40,7 @@ public class MetadataExtractor
             ObjectDefaults = ExtractObjectDefaults(),
             FieldPaths = ExtractFieldPaths(),
             CdoData = ExtractCdoData(),
+            StructSchemas = ExtractStructSchemas(),
         };
     }
 
@@ -642,5 +643,203 @@ public class MetadataExtractor
         }
 
         return preservedProps.Count > 0 ? preservedProps : null;
+    }
+
+    /// <summary>
+    /// Extracts struct field schemas for nested struct property type resolution.
+    /// Traverses all StructPropertyData in exports to capture field type information.
+    /// </summary>
+    private Dictionary<string, Dictionary<string, StructFieldMeta>> ExtractStructSchemas()
+    {
+        var schemas = new Dictionary<string, Dictionary<string, StructFieldMeta>>();
+
+        foreach (var export in _asset.Exports)
+        {
+            if (export is NormalExport normalExport && normalExport.Data != null)
+            {
+                ExtractStructSchemasFromProperties(normalExport.Data, schemas);
+            }
+            else if (export is ClassExport classExport && classExport.Data != null)
+            {
+                ExtractStructSchemasFromProperties(classExport.Data, schemas);
+            }
+        }
+
+        return schemas;
+    }
+
+    /// <summary>
+    /// Recursively extracts struct field schemas from property data.
+    /// </summary>
+    private void ExtractStructSchemasFromProperties(List<PropertyData> properties, Dictionary<string, Dictionary<string, StructFieldMeta>> schemas)
+    {
+        foreach (var prop in properties)
+        {
+            if (prop is StructPropertyData structProp)
+            {
+                var structType = structProp.StructType?.Value?.Value;
+                if (!string.IsNullOrEmpty(structType) && structType != "Generic")
+                {
+                    // Only add if not already present (first occurrence wins)
+                    if (!schemas.ContainsKey(structType))
+                    {
+                        var fields = ExtractStructFields(structProp);
+                        if (fields.Count > 0)
+                        {
+                            schemas[structType] = fields;
+                        }
+                    }
+
+                    // Recursively process nested structs
+                    if (structProp.Value != null)
+                    {
+                        ExtractStructSchemasFromProperties(structProp.Value, schemas);
+                    }
+                }
+            }
+            else if (prop is ArrayPropertyData arrayProp && arrayProp.Value != null)
+            {
+                // Check array elements for structs
+                foreach (var element in arrayProp.Value)
+                {
+                    if (element is StructPropertyData elementStruct)
+                    {
+                        var structType = elementStruct.StructType?.Value?.Value;
+                        if (!string.IsNullOrEmpty(structType) && structType != "Generic" && !schemas.ContainsKey(structType))
+                        {
+                            var fields = ExtractStructFields(elementStruct);
+                            if (fields.Count > 0)
+                            {
+                                schemas[structType] = fields;
+                            }
+                        }
+
+                        // Recursively process nested structs
+                        if (elementStruct.Value != null)
+                        {
+                            ExtractStructSchemasFromProperties(elementStruct.Value, schemas);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Extracts field metadata from a StructPropertyData.
+    /// </summary>
+    private Dictionary<string, StructFieldMeta> ExtractStructFields(StructPropertyData structProp)
+    {
+        var fields = new Dictionary<string, StructFieldMeta>();
+
+        if (structProp.Value == null) return fields;
+
+        foreach (var field in structProp.Value)
+        {
+            var fieldName = field.Name?.ToString();
+            if (string.IsNullOrEmpty(fieldName)) continue;
+
+            var fieldMeta = new StructFieldMeta
+            {
+                PropertyType = field.PropertyType.Value
+            };
+
+            // Build the type hint based on property type
+            switch (field)
+            {
+                case IntPropertyData:
+                    fieldMeta.TypeHint = "int";
+                    break;
+                case Int64PropertyData:
+                    fieldMeta.TypeHint = "int64";
+                    break;
+                case UInt32PropertyData:
+                    fieldMeta.TypeHint = "uint32";
+                    break;
+                case UInt64PropertyData:
+                    fieldMeta.TypeHint = "uint64";
+                    break;
+                case FloatPropertyData:
+                    fieldMeta.TypeHint = "float";
+                    break;
+                case DoublePropertyData:
+                    fieldMeta.TypeHint = "double";
+                    break;
+                case BoolPropertyData:
+                    fieldMeta.TypeHint = "bool";
+                    break;
+                case BytePropertyData byteProp:
+                    fieldMeta.TypeHint = "byte";
+                    var enumName = byteProp.EnumType?.Value?.Value;
+                    if (!string.IsNullOrEmpty(enumName) && enumName != "None")
+                    {
+                        fieldMeta.EnumType = enumName;
+                        fieldMeta.TypeHint = $"Enum<{enumName}>";
+                    }
+                    break;
+                case EnumPropertyData enumProp:
+                    var enumType = enumProp.EnumType?.Value?.Value;
+                    if (!string.IsNullOrEmpty(enumType))
+                    {
+                        fieldMeta.EnumType = enumType;
+                        fieldMeta.TypeHint = $"Enum<{enumType}>";
+                    }
+                    break;
+                case StrPropertyData:
+                    fieldMeta.TypeHint = "string";
+                    break;
+                case NamePropertyData:
+                    fieldMeta.TypeHint = "Name";
+                    break;
+                case TextPropertyData:
+                    fieldMeta.TypeHint = "Text";
+                    break;
+                case ObjectPropertyData objProp:
+                    fieldMeta.TypeHint = "Object";
+                    // Try to get the object class from the value
+                    if (!objProp.Value.IsNull())
+                    {
+                        var objIndex = objProp.Value;
+                        if (objIndex.IsImport())
+                        {
+                            var imp = _asset.Imports[-objIndex.Index - 1];
+                            fieldMeta.ObjectClass = imp.ClassName.ToString();
+                        }
+                        else if (objIndex.IsExport())
+                        {
+                            var exp = _asset.Exports[objIndex.Index - 1];
+                            fieldMeta.ObjectClass = GetExportClassName(exp);
+                        }
+                    }
+                    break;
+                case StructPropertyData nestedStruct:
+                    var nestedStructType = nestedStruct.StructType?.Value?.Value;
+                    if (!string.IsNullOrEmpty(nestedStructType))
+                    {
+                        fieldMeta.StructType = nestedStructType;
+                        fieldMeta.TypeHint = $"Struct<{nestedStructType}>";
+                    }
+                    break;
+                case ArrayPropertyData arrayProp:
+                    var innerType = arrayProp.ArrayType?.Value?.Value ?? "Object";
+                    fieldMeta.TypeHint = $"Array<{innerType}>";
+                    break;
+                case MapPropertyData mapProp:
+                    var keyType = mapProp.KeyType?.Value?.Value ?? "Object";
+                    var valType = mapProp.ValueType?.Value?.Value ?? "Object";
+                    fieldMeta.TypeHint = $"Map<{keyType},{valType}>";
+                    break;
+                case SoftObjectPropertyData:
+                    fieldMeta.TypeHint = "SoftObject";
+                    break;
+                default:
+                    fieldMeta.TypeHint = field.PropertyType.Value?.Replace("Property", "") ?? "Object";
+                    break;
+            }
+
+            fields[fieldName] = fieldMeta;
+        }
+
+        return fields;
     }
 }

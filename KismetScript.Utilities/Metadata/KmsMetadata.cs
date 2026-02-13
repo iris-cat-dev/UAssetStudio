@@ -44,6 +44,44 @@ public class KmsMetadata
     /// CDO metadata.
     /// </summary>
     public Dictionary<string, CdoMetadata> CdoData { get; set; } = new();
+
+    /// <summary>
+    /// Struct field schemas for nested struct property type resolution.
+    /// Key: struct type name (e.g., "AnimNode_Root", "PoseLink")
+    /// Value: dictionary mapping field name to field type info
+    /// </summary>
+    public Dictionary<string, Dictionary<string, StructFieldMeta>> StructSchemas { get; set; } = new();
+}
+
+/// <summary>
+/// Metadata for a struct field, capturing type information for nested struct resolution.
+/// </summary>
+public class StructFieldMeta
+{
+    /// <summary>
+    /// The KMS type hint for this field (e.g., "int", "Struct<PoseLink>", "Enum<EAnimSyncGroupScope>").
+    /// </summary>
+    public string? TypeHint { get; set; }
+
+    /// <summary>
+    /// The UE property type name (e.g., "IntProperty", "StructProperty", "EnumProperty").
+    /// </summary>
+    public string? PropertyType { get; set; }
+
+    /// <summary>
+    /// For StructProperty: the struct type name.
+    /// </summary>
+    public string? StructType { get; set; }
+
+    /// <summary>
+    /// For EnumProperty/ByteProperty: the enum type name.
+    /// </summary>
+    public string? EnumType { get; set; }
+
+    /// <summary>
+    /// For ObjectProperty: the object class name.
+    /// </summary>
+    public string? ObjectClass { get; set; }
 }
 
 /// <summary>

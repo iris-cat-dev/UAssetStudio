@@ -867,6 +867,17 @@ public abstract partial class PackageLinker<T> where T : UnrealPackage
             // This will be handled specially in FixPropertyPointer to preserve the name
             return new FPackageIndex(0);
         }
+        else if (symbol is ClassSymbol classSymbol)
+        {
+            // For ClassSymbol (e.g., from K2Node dynamic casts), try to find the class
+            var candidates = GetPackageIndexByLocalName(classSymbol.Name).ToList();
+            if (candidates.Count >= 1)
+            {
+                return candidates[0].PackageIndex;
+            }
+            // Class not found - return null index
+            return new FPackageIndex(0);
+        }
         else
         {
             Console.WriteLine($"NotImplementedException CreatePackageIndexForSymbol: {symbol.Name}");

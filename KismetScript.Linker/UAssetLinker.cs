@@ -267,26 +267,32 @@ public partial class UAssetLinker : PackageLinker<UAsset>
         }
 
         // Restore dependencies
+        // Note: In metadata mode, import indices from the original asset are invalid
+        // because the import table is rebuilt from KMS. We only keep export dependencies.
         if (exportMeta.Dependencies != null)
         {
             if (exportMeta.Dependencies.SerializationBeforeSerialization != null)
             {
                 export.SerializationBeforeSerializationDependencies = exportMeta.Dependencies.SerializationBeforeSerialization
+                    .Where(i => i > 0) // Only keep export dependencies
                     .Select(i => new FPackageIndex(i)).ToList();
             }
             if (exportMeta.Dependencies.CreateBeforeSerialization != null)
             {
                 export.CreateBeforeSerializationDependencies = exportMeta.Dependencies.CreateBeforeSerialization
+                    .Where(i => i > 0)
                     .Select(i => new FPackageIndex(i)).ToList();
             }
             if (exportMeta.Dependencies.SerializationBeforeCreate != null)
             {
                 export.SerializationBeforeCreateDependencies = exportMeta.Dependencies.SerializationBeforeCreate
+                    .Where(i => i > 0)
                     .Select(i => new FPackageIndex(i)).ToList();
             }
             if (exportMeta.Dependencies.CreateBeforeCreate != null)
             {
                 export.CreateBeforeCreateDependencies = exportMeta.Dependencies.CreateBeforeCreate
+                    .Where(i => i > 0)
                     .Select(i => new FPackageIndex(i)).ToList();
             }
         }
@@ -1343,7 +1349,9 @@ public partial class UAssetLinker : PackageLinker<UAsset>
             {
                 foreach (var kvp in value.StructValue)
                 {
-                    var fieldProp = CreatePropertyDataFromValue(kvp.Key, "Object", kvp.Value);
+                    // Look up field type from struct schemas
+                    var fieldTypeHint = GetStructFieldTypeHint(structTypeName, kvp.Key);
+                    var fieldProp = CreatePropertyDataFromValue(kvp.Key, fieldTypeHint, kvp.Value);
                     if (fieldProp != null)
                         structProp.Value.Add(fieldProp);
                 }
@@ -1821,6 +1829,26 @@ public partial class UAssetLinker : PackageLinker<UAsset>
 
         // The root should be a package
         return current.ObjectName.ToString();
+    }
+
+    /// <summary>
+    /// Gets the type hint for a struct field from the struct schemas in metadata.
+    /// Falls back to "Object" if no schema is available.
+    /// </summary>
+    private string GetStructFieldTypeHint(string structTypeName, string fieldName)
+    {
+        if (_metadata?.StructSchemas == null)
+            return "Object";
+
+        if (_metadata.StructSchemas.TryGetValue(structTypeName, out var fields))
+        {
+            if (fields.TryGetValue(fieldName, out var fieldMeta) && !string.IsNullOrEmpty(fieldMeta.TypeHint))
+            {
+                return fieldMeta.TypeHint;
+            }
+        }
+
+        return "Object";
     }
 
     [GeneratedRegex("_(\\d+)$")]
