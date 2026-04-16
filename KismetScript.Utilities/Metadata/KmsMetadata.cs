@@ -23,13 +23,6 @@ public class KmsMetadata
     public List<ExportMetadata> InfrastructureExports { get; set; } = new();
 
     /// <summary>
-    /// Maps class names to their /Script/ package paths.
-    /// E.g., { "CarvedResourceData": "/Script/FSD", "Package": "/Script/CoreUObject" }
-    /// Used for import table ClassPackage fields when creating new imports.
-    /// </summary>
-    public Dictionary<string, string> ClassPackages { get; set; } = new();
-
-    /// <summary>
     /// Per-class defaults for object exports created from KMS.
     /// Keyed by the class name used in KMS object declarations.
     /// </summary>
@@ -95,7 +88,6 @@ public class ObjectClassDefaults
     /// </summary>
     public List<string>? ObjectFlags { get; set; }
 
-    public bool? BNotAlwaysLoadedForEditorGame { get; set; }
     public bool? BIsAsset { get; set; }
 
     /// <summary>

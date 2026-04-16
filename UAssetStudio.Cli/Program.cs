@@ -10,7 +10,7 @@ internal static class Program
     public static int Main(string[] args)
     {
         Console.OutputEncoding = Encoding.Unicode;
-        var root = new RootCommand("UAssetStudio CLI entrypoint (cfg/decompile/compile)");
+        var root = new RootCommand("UAssetStudio CLI (decompile/compile) by Iris");
 
         var ueVersion = new Option<EngineVersion>("--ue-version", () => EngineVersion.VER_UE4_27, "Unreal Engine version");
         var mappings = new Option<string?>("--mappings", description: "Path to .usmap for unversioned properties");
@@ -29,6 +29,9 @@ internal static class Program
 
         var verify = VerifyCommandBuilder.Create(ueVersion, mappings);
         root.Add(verify);
+
+        var validate = ValidateCommand.Create(ueVersion, mappings);
+        root.Add(validate);
 
         var assetRegistry = AssetRegistryCommandBuilder.Create();
         root.Add(assetRegistry);

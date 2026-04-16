@@ -36,7 +36,6 @@ public class MetadataExtractor
             Package = ExtractPackageInfo(),
             EngineVersion = ExtractEngineVersion(),
             InfrastructureExports = ExtractInfrastructureExports(),
-            ClassPackages = ExtractClassPackages(),
             ObjectDefaults = ExtractObjectDefaults(),
             FieldPaths = ExtractFieldPaths(),
             CdoData = ExtractCdoData(),
@@ -109,27 +108,6 @@ public class MetadataExtractor
     }
 
     /// <summary>
-    /// Builds a mapping of class names to their /Script/ package paths.
-    /// Scanned from the import table's ClassPackage fields.
-    /// </summary>
-    private Dictionary<string, string> ExtractClassPackages()
-    {
-        var classPackages = new Dictionary<string, string>();
-
-        foreach (var import in _asset.Imports)
-        {
-            var className = import.ClassName.ToString();
-            var classPackage = import.ClassPackage.ToString();
-            if (!string.IsNullOrEmpty(className) && !string.IsNullOrEmpty(classPackage))
-            {
-                classPackages.TryAdd(className, classPackage);
-            }
-        }
-
-        return classPackages;
-    }
-
-    /// <summary>
     /// Extracts per-class defaults for non-function, non-class object exports.
     /// Groups exports by their class and extracts common flags and property serialization hints.
     /// </summary>
@@ -152,7 +130,6 @@ public class MetadataExtractor
             var classDefaults = new ObjectClassDefaults
             {
                 ObjectFlags = GetObjectFlags(export.ObjectFlags),
-                BNotAlwaysLoadedForEditorGame = export.bNotAlwaysLoadedForEditorGame ? true : null,
                 BIsAsset = export.bIsAsset ? true : null,
             };
 

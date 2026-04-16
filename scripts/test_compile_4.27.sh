@@ -14,6 +14,9 @@ ASSET_PATH="/Users/bytedance/Project/UAssetStudio/script/BP_PetComponent.uasset"
 # Optional: set to a valid UE4.27 .usmap if needed
 USMAP_PATH=""  # Optional: set to a valid UE4.27 .usmap if needed
 
+# Optional: set metadata file path for standalone compilation (.kms.meta)
+# META_PATH="$KMS_FILE.meta"  # Optional: defaults to KMS_FILE.meta if not set
+
 # Optional: set explicit output file path (overrides OUTDIR)
 # OUTPUT_FILE="$OUTDIR/BP_PetComponent_Modified.uasset"
 
@@ -48,20 +51,29 @@ fi
 
 echo "[Info] Running compile (UE4.27)..."
 
+# Build meta option if META_PATH is set
+META_OPT=""
+if [[ -n "${META_PATH:-}" ]] && [[ -f "$META_PATH" ]]; then
+  echo "[Info] Using metadata: $META_PATH"
+  META_OPT="--meta $META_PATH"
+elif [[ -n "${META_PATH:-}" ]]; then
+  echo "[Warn] Metadata file not found: $META_PATH (continue without explicit meta)"
+fi
+
 # Run compile with optional mappings
 if [[ -n "$USMAP_PATH" ]] && [[ -f "$USMAP_PATH" ]]; then
   echo "[Info] Using mappings: $USMAP_PATH"
   if [[ -n "${OUTPUT_FILE:-}" ]]; then
-    dotnet run --project "$CLI_PROJ" -- compile "$KMS_FILE" --asset "$ASSET_PATH" --ue-version "$UE_VERSION" --mappings "$USMAP_PATH" "$OUT_OPT" "$COMPILED_FILE"
+    dotnet run --project "$CLI_PROJ" -- compile "$KMS_FILE" --asset "$ASSET_PATH" --ue-version "$UE_VERSION" --mappings "$USMAP_PATH" $META_OPT "$OUT_OPT" "$COMPILED_FILE"
   else
-    dotnet run --project "$CLI_PROJ" -- compile "$KMS_FILE" --asset "$ASSET_PATH" --ue-version "$UE_VERSION" --mappings "$USMAP_PATH" "$OUT_OPT" "$OUTDIR"
+    dotnet run --project "$CLI_PROJ" -- compile "$KMS_FILE" --asset "$ASSET_PATH" --ue-version "$UE_VERSION" --mappings "$USMAP_PATH" $META_OPT "$OUT_OPT" "$OUTDIR"
   fi
 else
   [[ -n "$USMAP_PATH" ]] && echo "[Warn] USMAP not found: $USMAP_PATH (continue without mappings)"
   if [[ -n "${OUTPUT_FILE:-}" ]]; then
-    dotnet run --project "$CLI_PROJ" -- compile "$KMS_FILE" --asset "$ASSET_PATH" --ue-version "$UE_VERSION" "$OUT_OPT" "$COMPILED_FILE"
+    dotnet run --project "$CLI_PROJ" -- compile "$KMS_FILE" --asset "$ASSET_PATH" --ue-version "$UE_VERSION" $META_OPT "$OUT_OPT" "$COMPILED_FILE"
   else
-    dotnet run --project "$CLI_PROJ" -- compile "$KMS_FILE" --asset "$ASSET_PATH" --ue-version "$UE_VERSION" "$OUT_OPT" "$OUTDIR"
+    dotnet run --project "$CLI_PROJ" -- compile "$KMS_FILE" --asset "$ASSET_PATH" --ue-version "$UE_VERSION" $META_OPT "$OUT_OPT" "$OUTDIR"
   fi
 fi
 

@@ -13,18 +13,20 @@ namespace UAssetStudio.Cli.CMD
             var assetOpt = new Option<string?>("--asset", description: "Original asset path (.uasset); defaults to script .uasset neighbor");
             var outdirOpt = new Option<string?>("--outdir", description: "Output directory; default = script directory");
             var outFileOpt = new Option<string?>("--out", description: "Output file path (overrides --outdir)");
+            var metaOpt = new Option<string?>("--meta", description: "Path to .kms.meta metadata file for standalone compilation");
             var compile = new Command("compile", "Compile .kms to .uasset")
             {
                 scriptArg,
                 assetOpt,
                 outdirOpt,
-                outFileOpt
+                outFileOpt,
+                metaOpt
             };
 
             compile.AddOption(ueVersion);
             compile.AddOption(mappings);
 
-            compile.SetHandler((EngineVersion ver, string? mapPath, string scriptPath, string? assetPath, string? outdir, string? outFile) =>
+            compile.SetHandler((EngineVersion ver, string? mapPath, string scriptPath, string? assetPath, string? outdir, string? outFile, string? metaPath) =>
             {
                 if (!File.Exists(scriptPath))
                 {
@@ -32,8 +34,9 @@ namespace UAssetStudio.Cli.CMD
                     return;
                 }
 
-                var metaPath = scriptPath + ".meta";
-                var hasMetadata = File.Exists(metaPath);
+                // Use explicit meta path if provided, otherwise default to scriptPath + ".meta"
+                var effectiveMetaPath = metaPath ?? scriptPath + ".meta";
+                var hasMetadata = File.Exists(effectiveMetaPath);
                 var originalAssetPath = assetPath ?? Path.ChangeExtension(scriptPath, ".uasset");
                 var hasOriginalAsset = File.Exists(originalAssetPath);
 
@@ -44,11 +47,11 @@ namespace UAssetStudio.Cli.CMD
                 if (hasMetadata && !hasOriginalAsset)
                 {
                     // Standalone compilation mode - use metadata file
-                    Console.WriteLine($"Using metadata file: {metaPath}");
-                    var metadata = KmsMetadataSerializer.ReadFromFile(metaPath);
+                    Console.WriteLine($"Using metadata file: {effectiveMetaPath}");
+                    var metadata = KmsMetadataSerializer.ReadFromFile(effectiveMetaPath);
                     if (metadata == null)
                     {
-                        Console.WriteLine($"Error: Failed to parse metadata file {metaPath}");
+                        Console.WriteLine($"Error: Failed to parse metadata file {effectiveMetaPath}");
                         return;
                     }
                     linker = UAssetLinker.FromMetadata(metadata);
@@ -89,7 +92,7 @@ namespace UAssetStudio.Cli.CMD
 
                 newAsset.Write(outputPath);
                 Console.WriteLine($"Compiled: {scriptPath} -> {outputPath}");
-            }, ueVersion, mappings, scriptArg, assetOpt, outdirOpt, outFileOpt);
+            }, ueVersion, mappings, scriptArg, assetOpt, outdirOpt, outFileOpt, metaOpt);
 
             return compile;
         }

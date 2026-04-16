@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # Paths (adjust if your environment differs)
-ASSET_PATH="/Users/bytedance/Project/UAssetStudio/scripts/original_assets/BoltActionRifle/Overclocks/OSB_M1000.uasset"
+ASSET_PATH="/Users/bytedance/Project/UAssetStudio/scripts/original_assets/BoltActionRifle/STE_M1000_Electrocution.uasset"
 USMAP_PATH=""  # Optional: set to a valid UE4.27 .usmap if needed
 REPO_ROOT="/Users/bytedance/Project/UAssetStudio"
 CLI_PROJ="$REPO_ROOT/UAssetStudio.Cli/UAssetStudio.Cli.csproj"
