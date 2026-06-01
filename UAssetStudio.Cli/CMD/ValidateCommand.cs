@@ -1,6 +1,7 @@
-using System;
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using System.IO;
+using System.Linq;
 using UAssetAPI;
 using UAssetAPI.UnrealTypes;
 using UAssetAPI.Validation;
@@ -12,62 +13,69 @@ namespace UAssetStudio.Cli.CMD
     /// </summary>
     public static class ValidateCommand
     {
-        public static Command Create(Option<EngineVersion> ueVersion, Option<string?> mappings)
+        public static Command Create(Option<EngineVersion> ueVersion, Option<string?> mappings, Option<bool> json)
         {
-            var command = new Command("validate", "验证 UAsset 文件的结构完整性");
+            var command = new Command("validate", "Validate structural integrity of a .uasset file");
 
-            var assetPathArg = new Argument<string>("asset", "要验证的 .uasset 文件路径");
+            var assetPathArg = new Argument<string>("asset", "Path to the .uasset file to validate");
             var gameContentPathOption = new Option<string?>(
                 new[] { "--game-content", "-g" },
                 () => null,
-                "游戏 Content 目录路径，用于验证导入资产是否存在");
+                "Game Content directory, used to verify imported assets exist on disk");
 
             command.AddArgument(assetPathArg);
             command.AddOption(gameContentPathOption);
             command.AddOption(ueVersion);
             command.AddOption(mappings);
 
-            command.SetHandler((EngineVersion ver, string? mapPath, string assetPath, string? gameContentPath) =>
+            command.SetHandler((InvocationContext ctx) =>
             {
-                try
-                {
-                    if (!File.Exists(assetPath))
-                    {
-                        Console.WriteLine($"错误: 文件不存在: {assetPath}");
-                        return;
-                    }
+                var ver = ctx.ParseResult.GetValueForOption(ueVersion);
+                var mapPath = ctx.ParseResult.GetValueForOption(mappings);
+                var assetPath = ctx.ParseResult.GetValueForArgument(assetPathArg);
+                var gameContentPath = ctx.ParseResult.GetValueForOption(gameContentPathOption);
+                var asJson = ctx.ParseResult.GetValueForOption(json);
 
-                    Console.WriteLine($"验证资产: {assetPath}");
-                    if (!string.IsNullOrEmpty(gameContentPath))
+                ctx.ExitCode = CliOutput.Run("validate", asJson,
+                    new { asset = assetPath, mappings = mapPath, ueVersion = ver.ToString(), gameContent = gameContentPath },
+                    result =>
                     {
-                        Console.WriteLine($"游戏目录: {gameContentPath}");
-                    }
-                    Console.WriteLine();
+                        CliOutput.RequireFile(assetPath, "Asset file");
 
-                    // 加载资产
-                    UAsset asset;
-                    try
-                    {
-                        asset = CliHelpers.LoadAsset(ver, mapPath, assetPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"❌ 加载资产失败: {ex.Message}");
-                        return;
-                    }
+                        UAsset asset;
+                        try
+                        {
+                            asset = CliHelpers.LoadAsset(ver, mapPath, assetPath);
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new CliException("LoadFailed", $"Failed to load asset: {ex.Message}");
+                        }
 
-                    // 执行验证
-                    var validator = new UAssetValidator(gameContentPath);
-                    var result = validator.Validate(asset);
+                        var validator = new UAssetValidator(gameContentPath);
+                        var validation = validator.Validate(asset);
 
-                    // 打印结果
-                    ValidationExtensions.PrintResult(result);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"验证过程中发生错误: {ex.Message}");
-                }
-            }, ueVersion, mappings, assetPathArg, gameContentPathOption);
+                        // Structured payload
+                        result.Data = new
+                        {
+                            isValid = validation.IsValid,
+                            errorCount = validation.Errors.Count,
+                            warningCount = validation.Warnings.Count,
+                            errors = validation.Errors.Select(e => new { category = e.Category, message = e.Message, exportIndex = e.ExportIndex, importIndex = e.ImportIndex }),
+                            warnings = validation.Warnings.Select(w => new { category = w.Category, message = w.Message, exportIndex = w.ExportIndex, importIndex = w.ImportIndex }),
+                        };
+
+                        result.Line($"Validation Result: {(validation.IsValid ? "PASSED" : "FAILED")}");
+                        foreach (var e in validation.Errors) result.Line(e.ToString());
+                        foreach (var w in validation.Warnings) result.Line($"(warning) {w}");
+
+                        if (!validation.IsValid)
+                        {
+                            result.Fail("ValidationFailed",
+                                $"Asset failed validation with {validation.Errors.Count} error(s)");
+                        }
+                    });
+            });
 
             return command;
         }

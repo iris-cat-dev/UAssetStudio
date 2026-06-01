@@ -9,32 +9,23 @@ internal static class Program
 {
     public static int Main(string[] args)
     {
-        Console.OutputEncoding = Encoding.Unicode;
-        var root = new RootCommand("UAssetStudio CLI (decompile/compile) by Iris");
+        // UTF-8 (no BOM) keeps stdout cleanly parseable for agents and tools.
+        Console.OutputEncoding = new UTF8Encoding(false);
+        var root = new RootCommand("UAssetStudio CLI (decompile/compile/patch) by Iris");
 
         var ueVersion = new Option<EngineVersion>("--ue-version", () => EngineVersion.VER_UE4_27, "Unreal Engine version");
         var mappings = new Option<string?>("--mappings", description: "Path to .usmap for unversioned properties");
+        var json = new Option<bool>("--json", () => false, "Emit a single structured JSON result to stdout (machine-readable)");
+        root.AddGlobalOption(json);
 
-        var cfg = CfgCommandBuilder.Create(ueVersion, mappings);
-        root.Add(cfg);
-
-        var decompile = DecompileCommandBuilder.Create(ueVersion, mappings);
-        root.Add(decompile);
-
-        var compile = CompileCommandBuilder.Create(ueVersion, mappings);
-        root.Add(compile);
-
-        var json = JsonCommandBuilder.Create(ueVersion, mappings);
-        root.Add(json);
-
-        var verify = VerifyCommandBuilder.Create(ueVersion, mappings);
-        root.Add(verify);
-
-        var validate = ValidateCommand.Create(ueVersion, mappings);
-        root.Add(validate);
-
-        var assetRegistry = AssetRegistryCommandBuilder.Create();
-        root.Add(assetRegistry);
+        root.Add(CfgCommandBuilder.Create(ueVersion, mappings, json));
+        root.Add(DecompileCommandBuilder.Create(ueVersion, mappings, json));
+        root.Add(CompileCommandBuilder.Create(ueVersion, mappings, json));
+        root.Add(JsonCommandBuilder.Create(ueVersion, mappings, json));
+        root.Add(VerifyCommandBuilder.Create(ueVersion, mappings, json));
+        root.Add(ValidateCommand.Create(ueVersion, mappings, json));
+        root.Add(ModsCommandBuilder.Create(ueVersion, mappings, json));
+        root.Add(AssetRegistryCommandBuilder.Create(json));
 
         return root.Invoke(args);
     }

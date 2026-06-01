@@ -19,5 +19,7 @@
     <ProjectReference Include="..\KismetScript.Linker\KismetScript.Linker.csproj" />
     <ProjectReference Include="..\KismetScript.Parser\KismetScript.Parser.csproj" />
     <ProjectReference Include="..\AssetRegistry.Serializer\AssetRegistry.Serializer.csproj" />
+    <ProjectReference Include="..\UAssetStudio.Patching\UAssetStudio.Patching.csproj" />
+    <ProjectReference Include="..\UAssetStudio.Mods\UAssetStudio.Mods.csproj" />
   </ItemGroup>
 </Project>

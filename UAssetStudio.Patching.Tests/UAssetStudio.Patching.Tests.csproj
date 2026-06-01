@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <LangVersion>12</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.6.4" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.6.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UAssetStudio.Patching\UAssetStudio.Patching.csproj" />
+    <ProjectReference Include="..\UAssetAPI\UAssetAPI\UAssetAPI.csproj" />
+  </ItemGroup>
+
+  <!-- Committed, round-trippable UE4.27 blueprint asset reused from UAssetAPI.Tests. -->
+  <ItemGroup>
+    <None Include="..\UAssetAPI\UAssetAPI.Tests\TestAssets\TestJson\WPN_LockOnRifle.uasset" Link="TestAssets\WPN_LockOnRifle.uasset">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\UAssetAPI\UAssetAPI.Tests\TestAssets\TestJson\WPN_LockOnRifle.uexp" Link="TestAssets\WPN_LockOnRifle.uexp">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

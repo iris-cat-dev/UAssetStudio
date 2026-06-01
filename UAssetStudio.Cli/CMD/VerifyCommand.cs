@@ -1,4 +1,6 @@
 using System.CommandLine;
+using System.CommandLine.Invocation;
+using System.IO;
 using KismetScript.Decompiler;
 using KismetScript.Linker;
 using KismetScript.Utilities.Metadata;
@@ -8,10 +10,10 @@ namespace UAssetStudio.Cli.CMD
 {
     internal static class VerifyCommandBuilder
     {
-        internal static Command Create(Option<EngineVersion> ueVersion, Option<string?> mappings)
+        internal static Command Create(Option<EngineVersion> ueVersion, Option<string?> mappings, Option<bool> json)
         {
             var assetArg = new Argument<string>("asset", description: "Path to asset (.uasset/.umap)");
-            var outdirOpt = new Option<string?>("--outdir", description: "Output directory; default = asset directory");
+            var outdirOpt = new Option<string?>(new[] { "--outdir", "--out" }, description: "Output directory; default = asset directory");
             var metaOpt = new Option<bool>("--meta", () => false, "Generate .kms.meta file and use standalone compilation");
             var verify = new Command("verify", "Decompile asset to .kms, recompile, link, and write .new.uasset")
             {
@@ -23,74 +25,88 @@ namespace UAssetStudio.Cli.CMD
             verify.AddOption(ueVersion);
             verify.AddOption(mappings);
 
-            verify.SetHandler((EngineVersion ver, string? mapPath, string assetPath, string? outdir, bool generateMeta) =>
+            verify.SetHandler((InvocationContext ctx) =>
             {
-                if (!File.Exists(assetPath))
-                {
-                    Console.WriteLine($"Error: Input file {assetPath} does not exist");
-                    return;
-                }
+                var ver = ctx.ParseResult.GetValueForOption(ueVersion);
+                var mapPath = ctx.ParseResult.GetValueForOption(mappings);
+                var assetPath = ctx.ParseResult.GetValueForArgument(assetArg);
+                var outdir = ctx.ParseResult.GetValueForOption(outdirOpt);
+                var generateMeta = ctx.ParseResult.GetValueForOption(metaOpt);
+                var asJson = ctx.ParseResult.GetValueForOption(json);
 
-                var asset = CliHelpers.LoadAsset(ver, mapPath, assetPath);
-                var dir = outdir ?? Path.GetDirectoryName(assetPath) ?? ".";
+                ctx.ExitCode = CliOutput.Run("verify", asJson,
+                    new { asset = assetPath, mappings = mapPath, ueVersion = ver.ToString(), outdir, meta = generateMeta },
+                    result =>
+                    {
+                        CliOutput.RequireFile(assetPath, "Asset file");
 
-                // 1) Decompile to .kms
-                var kmsPath = Path.Join(dir, Path.ChangeExtension(Path.GetFileName(assetPath), ".kms"));
-                CliHelpers.DecompileToKms(asset, kmsPath);
-                Console.WriteLine($"Decompiled: {assetPath} -> {kmsPath}");
+                        var asset = CliHelpers.LoadAsset(ver, mapPath, assetPath);
+                        var dir = outdir ?? Path.GetDirectoryName(assetPath) ?? ".";
+                        Directory.CreateDirectory(dir);
 
-                // 1.5) Generate metadata if requested
-                KmsMetadata? metadata = null;
-                if (generateMeta)
-                {
-                    var metaPath = kmsPath + ".meta";
-                    var extractor = new MetadataExtractor();
-                    metadata = extractor.Extract(asset);
-                    KmsMetadataSerializer.WriteToFile(metadata, metaPath);
-                    Console.WriteLine($"Generated metadata: {metaPath}");
-                }
+                        // 1) Decompile to .kms
+                        var kmsPath = Path.Join(dir, Path.ChangeExtension(Path.GetFileName(assetPath), ".kms"));
+                        CliHelpers.DecompileToKms(asset, kmsPath);
+                        result.AddOutput(kmsPath);
+                        result.Line($"Decompiled: {assetPath} -> {kmsPath}");
 
-                // 2) Compile .kms back
-                var script = CliHelpers.CompileKms(kmsPath, ver);
-                Console.WriteLine($"Compiled script: {script}");
+                        // 1.5) Generate metadata if requested
+                        KmsMetadata? metadata = null;
+                        if (generateMeta)
+                        {
+                            var metaPath = kmsPath + ".meta";
+                            var extractor = new MetadataExtractor();
+                            metadata = extractor.Extract(asset);
+                            KmsMetadataSerializer.WriteToFile(metadata, metaPath);
+                            result.AddOutput(metaPath);
+                            result.Line($"Generated metadata: {metaPath}");
+                        }
 
-                // 3) Link compiled script into asset
-                UAssetLinker linker;
-                if (generateMeta && metadata != null)
-                {
-                    // Standalone: imports from KMS, object exports from KMS, infrastructure from metadata
-                    linker = UAssetLinker.FromMetadata(metadata);
-                    Console.WriteLine("Using metadata for linking (KMS-driven imports & exports)");
-                }
-                else
-                {
-                    // Use original asset
-                    linker = new UAssetLinker(asset);
-                }
+                        // 2) Compile .kms back
+                        var script = CliHelpers.CompileKms(kmsPath, ver);
 
-                var newAsset = linker
-                        .LinkCompiledScript(script)
-                        .Build();
+                        // 3) Link compiled script into asset
+                        UAssetLinker linker;
+                        if (generateMeta && metadata != null)
+                        {
+                            linker = UAssetLinker.FromMetadata(metadata);
+                        }
+                        else
+                        {
+                            linker = new UAssetLinker(asset);
+                        }
 
-                // 5) Write .new.uasset
-                var outFile = Path.Join(dir, Path.GetFileName(Path.ChangeExtension(assetPath, ".new.uasset")));
-                newAsset.Write(outFile);
+                        var newAsset = linker.LinkCompiledScript(script).Build();
 
-                // 6) Verification
-                if (generateMeta)
-                {
-                    // Structural verification (NameMap order differs, no binary equality expected)
-                    CliHelpers.VerifyStructural(assetPath, outFile, ver, mapPath);
-                    Console.WriteLine($"Verified (structural): {assetPath} -> {kmsPath} -> {outFile}");
-                }
-                else
-                {
-                    // Normal: exact JSON comparison for binary equality
-                    CliHelpers.VerifyOldAndNew(assetPath, outFile, ver, mapPath);
-                    Console.WriteLine($"Verified: {assetPath} -> {kmsPath} -> {outFile}");
-                }
+                        // 5) Write .new.uasset
+                        var outFile = Path.Join(dir, Path.GetFileName(Path.ChangeExtension(assetPath, ".new.uasset")));
+                        newAsset.Write(outFile);
+                        result.AddOutput(outFile);
 
-            }, ueVersion, mappings, assetArg, outdirOpt, metaOpt);
+                        // 6) Verification (judgment step → exit 2 on mismatch)
+                        try
+                        {
+                            if (generateMeta)
+                            {
+                                CliHelpers.VerifyStructural(assetPath, outFile, ver, mapPath);
+                                result.Data = new { mode = "structural", verified = true };
+                                result.Line($"Verified (structural): {assetPath} -> {kmsPath} -> {outFile}");
+                            }
+                            else
+                            {
+                                CliHelpers.VerifyOldAndNew(assetPath, outFile, ver, mapPath);
+                                result.Data = new { mode = "binary", verified = true };
+                                result.Line($"Verified: {assetPath} -> {kmsPath} -> {outFile}");
+                            }
+                        }
+                        catch (InvalidOperationException ex)
+                        {
+                            result.Data = new { verified = false };
+                            result.Fail("VerificationMismatch", ex.Message,
+                                "Round-trip is not binary-equal; the .kms may be a lossy decompilation for this asset.");
+                        }
+                    });
+            });
 
             return verify;
         }

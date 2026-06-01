@@ -1,0 +1,1099 @@
+﻿from "/Script/UMG" import {
+    Button Default__Button;
+    ButtonSlot Default__ButtonSlot;
+    class Button : Widget {
+        [UnknownSignature, VirtualFunction] public virtual void SetVisibility();
+    }
+    class ButtonSlot;
+    class HorizontalBox;
+    class HorizontalBoxSlot;
+    class Image : Widget {
+        [UnknownSignature, VirtualFunction] public virtual void SetVisibility();
+    }
+    class Overlay;
+    class OverlaySlot;
+    class ScaleBox;
+    class ScaleBoxSlot;
+    class SizeBox;
+    class SizeBoxSlot;
+    class Spacer;
+    class UserWidget {
+        [UnknownSignature, FinalFunction] public sealed void PlayAnimationForward();
+        [UnknownSignature, FinalFunction] public sealed void PlayAnimationReverse();
+        [UnknownSignature, VirtualFunction] public virtual void GetOwningPlayer();
+    }
+    class VerticalBox;
+    class VerticalBoxSlot;
+    class Widget {
+        [UnknownSignature, FinalFunction] public sealed void IsVisible();
+        [UnknownSignature, FinalFunction] public sealed void SetRenderOpacity();
+        [UnknownSignature, VirtualFunction] public virtual void IsHovered();
+    }
+    class WidgetAnimation;
+    class WidgetBlueprintGeneratedClass : `/Script/RogueCore` {
+        [UnknownSignature, LocalVirtualFunction] public virtual void SetTint();
+    }
+    static class WidgetBlueprintLibrary {
+        [UnknownSignature, MathFunction] public static sealed void Handled();
+        [UnknownSignature, MathFunction] public static sealed void Unhandled();
+    }
+    class WidgetTree;
+    Enum ESlateVisibility;
+    HorizontalBox Default__HorizontalBox;
+    HorizontalBoxSlot Default__HorizontalBoxSlot;
+    Image Default__Image;
+    Overlay Default__Overlay;
+    OverlaySlot Default__OverlaySlot;
+    ScaleBox Default__ScaleBox;
+    ScaleBoxSlot Default__ScaleBoxSlot;
+    ScriptStruct EventReply;
+    ScriptStruct WidgetAnimationHandle;
+    SizeBox Default__SizeBox;
+    SizeBoxSlot Default__SizeBoxSlot;
+    Spacer Default__Spacer;
+    UserWidget Default__UserWidget;
+    VerticalBox Default__VerticalBox;
+    VerticalBoxSlot Default__VerticalBoxSlot;
+    WidgetAnimation Default__WidgetAnimation;
+    WidgetBlueprintGeneratedClass Default__WidgetBlueprintGeneratedClass;
+    WidgetTree Default__WidgetTree;
+}
+
+from "/Script/SlateCore" import ScriptStruct KeyEvent;
+
+from "/Script/RogueCore" import {
+    static class ActorFunctionLibrary {
+        [UnknownSignature, MathFunction] public static sealed void GetHeroLevel();
+    }
+    class CategoryID;
+    static class CharacterShowroomController {
+        [UnknownSignature, MathFunction] public static sealed void PlayShowroomCharacterSelectionMontage();
+        [UnknownSignature, MathFunction] public static sealed void PlayShowroomCharacterSpawnMontage();
+    }
+    static class CommunicationComponent {
+        [UnknownSignature, MathFunction] public static sealed void PlayPitchedByClass();
+    }
+    class FSDAdvancedLabel {
+        [UnknownSignature, FinalFunction] public sealed void SetText();
+    }
+    class FSDGameInstance {
+        [UnknownSignature, FinalFunction] public sealed void SetPreviewingCharacterID();
+        public ObjectProperty OnShowCharacterSelector;
+    }
+    class FSDGameState : GameStateBase {
+        public DelegateFunction PlayerDelegate__DelegateSignature;
+        [UnknownSignature] public void ArePlayersAllowedToPickSameClass();
+        public ObjectProperty OnPlayerJoined;
+        public ObjectProperty OnPlayerLeave;
+    }
+    class FSDPlayerController {
+        public ObjectProperty OnPlayerClassChangeSuccess;
+        public ObjectProperty OnPlayerClassChangeFailure;
+        [UnknownSignature, LocalVirtualFunction] public virtual void RequestChangeToPlayerClass();
+    }
+    class FSDPlayerState {
+        public DelegateFunction SelectedCharacterChangedDelegate__DelegateSignature;
+        public ObjectProperty OnSelectedCharacterChanged;
+    }
+    class FSDSaveGame {
+        public DelegateFunction ItemUINotificationDelegate__DelegateSignature;
+        public ObjectProperty OnItemUINotificationChange;
+    }
+    class FSDWidgetBlueprintLibrary {
+        [UnknownSignature] public void GetOwningFSDPlayerState();
+    }
+    static class GameFunctionLibrary {
+        [UnknownSignature, MathFunction] public static sealed void GetFSDGameInstance();
+        [UnknownSignature, MathFunction] public static sealed void GetFSDGameState();
+        [UnknownSignature, MathFunction] public static sealed void GetFSDSaveGame();
+        [UnknownSignature, MathFunction] public static sealed void GetLocalPlayerCharacterID();
+        [UnknownSignature, MathFunction] public static sealed void GetWindowManager();
+    }
+    static class InputFunctionLibrary {
+        [UnknownSignature, MathFunction] public static sealed void IsKeyEventAction();
+        [UnknownSignature, MathFunction] public static sealed void IsKeyEventActionAny();
+    }
+    class PlayerCharacter;
+    class PlayerCharacterData {
+        [UnknownSignature, FinalFunction] public sealed void GetName();
+        [UnknownSignature, FinalFunction] public sealed void GetShortDescription();
+    }
+    static class PlayerCharacterFunctionLibrary {
+        [UnknownSignature, MathFunction] public static sealed void GetAllPlayerCharacterIds();
+        [UnknownSignature] public void GetFreePlayerCharacterIds();
+    }
+    class PlayerCharacterID {
+        [UnknownSignature, FinalFunction] public sealed void GetCharacterClass();
+        [UnknownSignature, FinalFunction] public sealed void GetCharacterData();
+    }
+    static class UIFunctionLibrary {
+        [UnknownSignature, MathFunction] public static sealed void CheckItemUINotification();
+        [UnknownSignature, MathFunction] public static sealed void IsInItemUINotificationSet();
+    }
+    class WindowManager {
+        [UnknownSignature, FinalFunction] public sealed void CloseWindowClass();
+        [UnknownSignature, FinalFunction] public sealed void GetCurrentWindow();
+        [UnknownSignature, FinalFunction] public sealed void OpenWindowFromClass();
+    }
+    class WindowWidget;
+    DelegateFunction Delegate__DelegateSignature;
+    [UnknownSignature] void ShowCharacterSelectorSignature__DelegateSignature();
+    Enum ECharselectionCameraLocation;
+}
+
+from "/Script/MovieSceneTracks" import {
+    class MovieSceneDoubleSection;
+    class MovieSceneDoubleTrack;
+    class Default__MovieSceneDoubleSection {
+        public MovieSceneBuiltInEasingFunction EaseInFunction;
+        public MovieSceneBuiltInEasingFunction EaseOutFunction;
+    }
+    MovieSceneDoubleTrack Default__MovieSceneDoubleTrack;
+}
+
+from "/Script/MovieScene" import {
+    class MovieScene;
+    class MovieSceneBuiltInEasingFunction;
+    class MovieSceneCompiledData;
+    MovieScene Default__MovieScene;
+    MovieSceneCompiledData Default__MovieSceneCompiledData;
+}
+
+from "/Script/Engine" import {
+    class AudioComponent;
+    class ComponentDelegateBinding;
+    class GameplayStatics {
+        [UnknownSignature, FinalFunction] public sealed void PlaySound2D();
+    }
+    class GameStateBase {
+        public ObjectProperty PlayerArray;
+    }
+    class KismetArrayLibrary {
+        [UnknownSignature] public void Array_Contains();
+        [UnknownSignature, FinalFunction] public sealed void Array_Find();
+        [UnknownSignature, FinalFunction] public sealed void Array_Get();
+        [UnknownSignature, FinalFunction] public sealed void Array_LastIndex();
+        [UnknownSignature, FinalFunction] public sealed void Array_Length();
+    }
+    static class KismetMathLibrary {
+        [UnknownSignature, MathFunction] public static sealed void Add_IntInt();
+        [UnknownSignature, MathFunction] public static sealed void BooleanAND();
+        [UnknownSignature, MathFunction] public static sealed void BooleanOR();
+        [UnknownSignature, MathFunction] public static sealed void EqualEqual_ByteByte();
+        [UnknownSignature, MathFunction] public static sealed void EqualEqual_IntInt();
+        [UnknownSignature, MathFunction] public static sealed void EqualEqual_ObjectObject();
+        [UnknownSignature, MathFunction] public static sealed void FClamp();
+        [UnknownSignature, MathFunction] public static sealed void Greater_DoubleDouble();
+        [UnknownSignature, MathFunction] public static sealed void Less_IntInt();
+        [UnknownSignature, MathFunction] public static sealed void Not_PreBool();
+        [UnknownSignature, MathFunction] public static sealed void NotEqual_ByteByte();
+        [UnknownSignature, MathFunction] public static sealed void NotEqual_ObjectObject();
+        [UnknownSignature, MathFunction] public static sealed void Subtract_IntInt();
+    }
+    static class KismetSystemLibrary {
+        [UnknownSignature, MathFunction] public static sealed void IsValid();
+        [UnknownSignature, MathFunction] public static sealed void RetriggerableDelay();
+    }
+    static class KismetTextLibrary {
+        [UnknownSignature, MathFunction] public static sealed void Conv_IntToText();
+        [UnknownSignature, MathFunction] public static sealed void Format();
+    }
+    class PlayerController;
+    class PlayerState;
+    class SoundBase;
+    ComponentDelegateBinding Default__ComponentDelegateBinding;
+    GameplayStatics Default__GameplayStatics;
+    KismetArrayLibrary Default__KismetArrayLibrary;
+    class FormatArgumentData {
+        public ObjectProperty ArgumentName;
+        public ObjectProperty ArgumentValueType;
+        public ObjectProperty ArgumentValue;
+        public ObjectProperty ArgumentValueInt;
+        public ObjectProperty ArgumentValueFloat;
+        public ObjectProperty ArgumentValueDouble;
+        public ObjectProperty ArgumentValueGender;
+    }
+    ScriptStruct LatentActionInfo;
+    ScriptStruct PointerToUberGraphFrame;
+    class BlueprintGeneratedClass;
+    class MaterialInstanceConstant;
+    class SoundCue;
+    class Texture2D;
+    class UserDefinedEnum;
+}
+
+from "/Script/CoreUObject" import {
+    class Class;
+    class Function;
+    class Object;
+    Function Default__Function;
+    class DelegateFunction;
+    class Enum;
+    class Package;
+    class ScriptStruct;
+    class ObjectProperty;
+    class DelegateProperty;
+    class BoolProperty;
+    class ArrayProperty;
+    class IntProperty;
+    class ClassProperty;
+    class StructProperty;
+    class ByteProperty;
+    class TextProperty;
+    class DoubleProperty;
+    class EnumProperty;
+    class FloatProperty;
+    class StrProperty;
+    class MulticastInlineDelegateProperty;
+}
+
+from "/Game/UI/Menus/OLD_Menu_Loadout/ITM_ItemUnlockedIcon" import {
+    ITM_ItemUnlockedIcon_C Default__ITM_ItemUnlockedIcon_C;
+    class ITM_ItemUnlockedIcon_C {
+        [UnknownSignature, VirtualFunction] public virtual void SetVisibility();
+    }
+}
+
+from "/Game/UI/Menus/Menu_Character_Customization/CardSelector/WND_CharacterSelector_Pending" import {
+    WidgetBlueprintGeneratedClass WND_CharacterSelector_Pending_C;
+    WND_CharacterSelector_Pending_C Default__WND_CharacterSelector_Pending_C;
+}
+
+from "/Game/UI/Menus/Menu_Character_Customization/CardSelector/ITM_CharacterCard_Selector" import {
+    ITM_CharacterCard_Selector_C Default__ITM_CharacterCard_Selector_C;
+    class ITM_CharacterCard_Selector_C {
+        [UnknownSignature, LocalVirtualFunction] public virtual void SetIsOpen();
+        [UnknownSignature, LocalVirtualFunction] public virtual void SetCurrentCharacter();
+        [UnknownSignature, LocalVirtualFunction] public virtual void PopUp();
+        [UnknownSignature, LocalVirtualFunction] public virtual void DisableInteractionTemporarily();
+        [UnknownSignature, LocalVirtualFunction] public virtual void StartHideTimer();
+        [UnknownSignature, LocalVirtualFunction] public virtual void ToggleOpen();
+        [UnknownSignature, LocalVirtualFunction] public virtual void SetAutoHideEnabled();
+        [UnknownSignature, LocalVirtualFunction] public virtual void GetIsOpen();
+        [UnknownSignature, LocalVirtualFunction] public virtual void SetPendingCharacter();
+        [UnknownSignature, LocalVirtualFunction] public virtual void Initialize();
+        [UnknownSignature, LocalVirtualFunction] public virtual void StopHideTimer();
+        [UnknownSignature, LocalVirtualFunction] public virtual void UpdateSelectedBy();
+        [UnknownSignature, LocalVirtualFunction] public virtual void SetVanityCategory();
+    }
+}
+
+from "/Game/UI/HUD_MainOnscreen/Standard/Basic_Label" import {
+    Basic_Label_C Default__Basic_Label_C;
+    WidgetBlueprintGeneratedClass Basic_Label_C;
+}
+
+from "/Game/UI/Global_UI_Elements/UI_AdvancedLabel" import {
+    UI_AdvancedLabel_C Default__UI_AdvancedLabel_C;
+    WidgetBlueprintGeneratedClass UI_AdvancedLabel_C;
+}
+
+from "/Game/UI/Art/WidgetParts/ENUM_MenuColors" import UserDefinedEnum ENUM_MenuColors;
+
+from "/Game/UI/Art/WidgetParts/Basic_Image" import {
+    Basic_Image_C Default__Basic_Image_C;
+    WidgetBlueprintGeneratedClass Basic_Image_C;
+}
+
+from "/Game/UI/Art/MainOnScreenHUD/Arrow_Left" import Texture2D Arrow_Left;
+
+from "/Game/UI/Art/Icons/Icons_Specials/Icons_Special_RankUp" import Texture2D Icons_Special_RankUp;
+
+from "/Game/UI/_GlobalAssets/GUI/GUI_Global_Cointainer_Small_Rounded_Corner_Filled" import Texture2D GUI_Global_Cointainer_Small_Rounded_Corner_Filled;
+
+from "/Game/Game/LIB_Game" import {
+    class LIB_Game_C {
+        [UnknownSignature, LocalVirtualFunction] public virtual void SelectVisibility();
+    }
+    LIB_Game_C Default__LIB_Game_C;
+}
+
+from "/Game/Audio/SFX/UI/Menu/Button_RollOver_Cue" import SoundCue Button_RollOver_Cue;
+
+from "/Game/Audio/BXE/SFX/UI/Selects/UI_Select_01_Cue" import SoundCue UI_Select_01_Cue;
+
+from "/Game/Audio/BXE/SFX/UI/Selects/UI_Error_01_Cue" import SoundCue UI_Error_01_Cue;
+
+from "/Game/Audio/BXE/SFX/UI/Ramrod/ClassSelection/UI_Class_Select_MSS" import MetaSoundSource UI_Class_Select_MSS;
+
+from "/Game/Audio/BXE/SFX/UI/Ramrod/ClassSelection/UI_Class_Scroll_MSS" import MetaSoundSource UI_Class_Scroll_MSS;
+
+from "/Game/Art/Materials/_BaseMaterials/GeneratedGradients/M_Gradient_Horizontal_Mirrored" import MaterialInstanceConstant M_Gradient_Horizontal_Mirrored;
+
+[EditInlineNew, CompiledFromBlueprint, DefaultToInstanced, HasInstancedReference]
+class ITM_Wardrobe_ClassSelector_C : UserWidget {
+    Struct<PointerToUberGraphFrame> UberGraphFrame = {};
+    MulticastDelegate OnCharacterChanged = __unsupported_MulticastDelegateProperty__;
+    Enum<ECharselectionCameraLocation> SelectionType = Crafting;
+    bool UpdatePreviewCharacter = true;
+    bool ShowOtherClassesNotifications = true;
+    MulticastDelegate OnRequestCharacterSwitch = __unsupported_MulticastDelegateProperty__;
+    bool AllowSwitch = true;
+    MulticastDelegate OnCharacterSwitched = __unsupported_MulticastDelegateProperty__;
+    bool bHasScriptImplementedTick = false;
+    bool bHasScriptImplementedPaint = false;
+    [BlueprintVisible, ExportObject, BlueprintReadOnly, DisableEditOnInstance, InstancedReference, RepSkip, PersistentInstance] Object<UI_AdvancedLabel_C> Switch_Text;
+    [BlueprintVisible, ExportObject, BlueprintReadOnly, DisableEditOnInstance, InstancedReference, RepSkip, PersistentInstance] Object<Button> Switch_Button;
+    [BlueprintVisible, ExportObject, BlueprintReadOnly, DisableEditOnInstance, InstancedReference, RepSkip, PersistentInstance] Object<Basic_Image_C> Switch_BG;
+    [BlueprintVisible, ExportObject, BlueprintReadOnly, DisableEditOnInstance, InstancedReference, RepSkip, PersistentInstance] Object<Button> Right_Button;
+    [BlueprintVisible, ExportObject, BlueprintReadOnly, DisableEditOnInstance, InstancedReference, RepSkip, PersistentInstance] Object<Basic_Image_C> Right_Arrow;
+    [BlueprintVisible, ExportObject, BlueprintReadOnly, DisableEditOnInstance, InstancedReference, RepSkip, PersistentInstance] Object<Button> Open_Button;
+    [BlueprintVisible, ExportObject, BlueprintReadOnly, DisableEditOnInstance, InstancedReference, RepSkip, PersistentInstance] Object<ITM_ItemUnlockedIcon_C> NotificationIcon;
+    [BlueprintVisible, ExportObject, BlueprintReadOnly, DisableEditOnInstance, InstancedReference, RepSkip, PersistentInstance] Object<Button> Left_Button;
+    [BlueprintVisible, ExportObject, BlueprintReadOnly, DisableEditOnInstance, InstancedReference, RepSkip, PersistentInstance] Object<Basic_Image_C> Left_Arrow;
+    [BlueprintVisible, ExportObject, BlueprintReadOnly, DisableEditOnInstance, InstancedReference, RepSkip, PersistentInstance] Object<Image> Gradient_Image;
+    [BlueprintVisible, ExportObject, BlueprintReadOnly, DisableEditOnInstance, InstancedReference, RepSkip, PersistentInstance] Object<Basic_Label_C> ClassName_Text;
+    [BlueprintVisible, ExportObject, BlueprintReadOnly, DisableEditOnInstance, InstancedReference, RepSkip, PersistentInstance] Object<Basic_Label_C> ClassLevel_Text;
+    [BlueprintVisible, ExportObject, BlueprintReadOnly, DisableEditOnInstance, InstancedReference, RepSkip, PersistentInstance] Object<ITM_CharacterCard_Selector_C> CharacterCard_Selector;
+    [BlueprintVisible, BlueprintReadOnly, Transient, RepSkip] Object<WidgetAnimation> AnimHover;
+    [Edit, BlueprintVisible, DisableEditOnInstance] Object<PlayerCharacterID> CurrentCharacter;
+    [Edit, BlueprintVisible, DisableEditOnInstance] Object<CategoryID> VanityCategoryId;
+    [Edit, BlueprintVisible, DisableEditOnInstance, Interp] Double HoverProgress;
+    [Edit, BlueprintVisible, DisableEditOnInstance] bool IsInteractionBlocked;
+    [Delegate, BlueprintCallable, BlueprintEvent]
+    public void OnCharacterChanged__DelegateSignature([BlueprintVisible, BlueprintReadOnly] Class Character) {
+        // Block 1
+
+    }
+
+    [Delegate, BlueprintCallable, BlueprintEvent]
+    public void OnRequestCharacterSwitch__DelegateSignature([BlueprintVisible, BlueprintReadOnly] Object<PlayerCharacterID> PlayerClass) {
+        // Block 1
+
+    }
+
+    [Delegate, BlueprintCallable, BlueprintEvent]
+    public void OnCharacterSwitched__DelegateSignature() {
+        // Block 1
+
+    }
+
+    // Error decompiling function ExecuteUbergraph_ITM_Wardrobe_ClassSelector: Sequence contains no matching element
+
+    [BlueprintCallable, BlueprintEvent]
+    void AddTemporaryInteractionsBlock() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(AddTemporaryInteractionsBlock_2077);
+
+    }
+
+    [BlueprintEvent]
+    void BndEvt__ITM_Wardrobe_ClassSelector_CharacterCard_Selector_K2Node_ComponentBoundEvent_15_OnCardsVisibleChanged__DelegateSignature() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(BndEvt__ITM_Wardrobe_ClassSelector_CharacterCard_Selector_K2Node_ComponentBoundEvent_15_OnCardsVisibleChanged__DelegateSignature_2062);
+
+    }
+
+    [BlueprintEvent]
+    void BndEvt__ITM_Wardrobe_ClassSelector_Switch_Button_K2Node_ComponentBoundEvent_14_OnButtonHoverEvent__DelegateSignature() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(BndEvt__ITM_Wardrobe_ClassSelector_Switch_Button_K2Node_ComponentBoundEvent_14_OnButtonHoverEvent__DelegateSignature_2023);
+
+    }
+
+    [BlueprintEvent]
+    void BndEvt__ITM_Wardrobe_ClassSelector_Switch_Button_K2Node_ComponentBoundEvent_13_OnButtonHoverEvent__DelegateSignature() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(BndEvt__ITM_Wardrobe_ClassSelector_Switch_Button_K2Node_ComponentBoundEvent_13_OnButtonHoverEvent__DelegateSignature_1984);
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    void UpdateArrow([BlueprintVisible, BlueprintReadOnly, InstancedReference] Object<Basic_Image_C> InArrow, [BlueprintVisible, BlueprintReadOnly, InstancedReference] Object<Button> InButton) {
+        // Block 1
+        LetValueOnPersistentFrame("K2Node_CustomEvent_InArrow", InArrow);
+        LetValueOnPersistentFrame("K2Node_CustomEvent_InButton", InButton);
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(UpdateArrow_1789);
+
+    }
+
+    [BlueprintEvent]
+    void BndEvt__ITM_Wardrobe_ClassSelector_Right_Button_K2Node_ComponentBoundEvent_12_OnButtonHoverEvent__DelegateSignature() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(BndEvt__ITM_Wardrobe_ClassSelector_Right_Button_K2Node_ComponentBoundEvent_12_OnButtonHoverEvent__DelegateSignature_1784);
+
+    }
+
+    [BlueprintEvent]
+    void BndEvt__ITM_Wardrobe_ClassSelector_Right_Button_K2Node_ComponentBoundEvent_11_OnButtonHoverEvent__DelegateSignature() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(BndEvt__ITM_Wardrobe_ClassSelector_Right_Button_K2Node_ComponentBoundEvent_11_OnButtonHoverEvent__DelegateSignature_1751);
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    void Initialize([BlueprintVisible, BlueprintReadOnly] Object<PlayerCharacterID> Character, [BlueprintVisible, BlueprintReadOnly] Object<CategoryID> VanityCategory) {
+        // Block 1
+        LetValueOnPersistentFrame("K2Node_CustomEvent_Character", Character);
+        LetValueOnPersistentFrame("K2Node_CustomEvent_VanityCategory", VanityCategory);
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(Initialize_1708);
+
+    }
+
+    [BlueprintEvent]
+    void BndEvt__ITM_Wardrobe_ClassSelector_Left_Button_K2Node_ComponentBoundEvent_10_OnButtonHoverEvent__DelegateSignature() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(BndEvt__ITM_Wardrobe_ClassSelector_Left_Button_K2Node_ComponentBoundEvent_10_OnButtonHoverEvent__DelegateSignature_1703);
+
+    }
+
+    [BlueprintEvent]
+    void BndEvt__ITM_Wardrobe_ClassSelector_Left_Button_K2Node_ComponentBoundEvent_9_OnButtonHoverEvent__DelegateSignature() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(BndEvt__ITM_Wardrobe_ClassSelector_Left_Button_K2Node_ComponentBoundEvent_9_OnButtonHoverEvent__DelegateSignature_1670);
+
+    }
+
+    [BlueprintEvent]
+    void BndEvt__ITM_Wardrobe_ClassSelector_ITM_CharacterCard_Selector_K2Node_ComponentBoundEvent_8_OnSelectorClosed__DelegateSignature() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(BndEvt__ITM_Wardrobe_ClassSelector_ITM_CharacterCard_Selector_K2Node_ComponentBoundEvent_8_OnSelectorClosed__DelegateSignature_1669);
+
+    }
+
+    [BlueprintEvent]
+    void BndEvt__ITM_Wardrobe_ClassSelector_ITM_CharacterCard_Selector_K2Node_ComponentBoundEvent_7_OnCharacterHovered__DelegateSignature([BlueprintVisible, BlueprintReadOnly] Object<PlayerCharacterID> InCharacterID) {
+        // Block 1
+        LetValueOnPersistentFrame("K2Node_ComponentBoundEvent_InCharacterID", InCharacterID);
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(BndEvt__ITM_Wardrobe_ClassSelector_ITM_CharacterCard_Selector_K2Node_ComponentBoundEvent_7_OnCharacterHovered__DelegateSignature_1528);
+
+    }
+
+    [BlueprintEvent]
+    void BndEvt__ITM_Wardrobe_ClassSelector_Open_Button_K2Node_ComponentBoundEvent_6_OnButtonClickedEvent__DelegateSignature() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(BndEvt__ITM_Wardrobe_ClassSelector_Open_Button_K2Node_ComponentBoundEvent_6_OnButtonClickedEvent__DelegateSignature_1482);
+
+    }
+
+    [BlueprintEvent]
+    void BndEvt__ITM_Wardrobe_ClassSelector_ITM_CharacterCard_Selector_K2Node_ComponentBoundEvent_0_OnCharacterClicked__DelegateSignature([BlueprintVisible, BlueprintReadOnly] Object<PlayerCharacterID> InCharacterID) {
+        // Block 1
+        LetValueOnPersistentFrame("K2Node_ComponentBoundEvent_InCharacterID_1", InCharacterID);
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(BndEvt__ITM_Wardrobe_ClassSelector_ITM_CharacterCard_Selector_K2Node_ComponentBoundEvent_0_OnCharacterClicked__DelegateSignature_1375);
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    void ShowCurrentCharacter() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(ShowCurrentCharacter_1370);
+
+    }
+
+    [BlueprintEvent]
+    void BndEvt__ITM_Wardrobe_ClassSelector_Switch_Button_K2Node_ComponentBoundEvent_5_OnButtonClickedEvent__DelegateSignature() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(BndEvt__ITM_Wardrobe_ClassSelector_Switch_Button_K2Node_ComponentBoundEvent_5_OnButtonClickedEvent__DelegateSignature_1355);
+
+    }
+
+    [BlueprintEvent]
+    void BndEvt__ITM_Wardrobe_ClassSelector_Right_Button_K2Node_ComponentBoundEvent_4_OnButtonClickedEvent__DelegateSignature() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(BndEvt__ITM_Wardrobe_ClassSelector_Right_Button_K2Node_ComponentBoundEvent_4_OnButtonClickedEvent__DelegateSignature_1340);
+
+    }
+
+    [BlueprintEvent]
+    void BndEvt__ITM_Wardrobe_ClassSelector_Left_Button_K2Node_ComponentBoundEvent_3_OnButtonClickedEvent__DelegateSignature() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(BndEvt__ITM_Wardrobe_ClassSelector_Left_Button_K2Node_ComponentBoundEvent_3_OnButtonClickedEvent__DelegateSignature_1325);
+
+    }
+
+    [BlueprintEvent]
+    void BndEvt__ITM_Wardrobe_ClassSelector_Open_Button_K2Node_ComponentBoundEvent_2_OnButtonHoverEvent__DelegateSignature() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(BndEvt__ITM_Wardrobe_ClassSelector_Open_Button_K2Node_ComponentBoundEvent_2_OnButtonHoverEvent__DelegateSignature_1236);
+
+    }
+
+    [BlueprintEvent]
+    void BndEvt__ITM_Wardrobe_ClassSelector_Open_Button_K2Node_ComponentBoundEvent_1_OnButtonHoverEvent__DelegateSignature() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(BndEvt__ITM_Wardrobe_ClassSelector_Open_Button_K2Node_ComponentBoundEvent_1_OnButtonHoverEvent__DelegateSignature_1192);
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    void SwitchToCharacter() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(SwitchToCharacter_821);
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    void SelectNext() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(SelectNext_756);
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    void SelectPrev() {
+        // Block 1
+        this.ExecuteUbergraph_ITM_Wardrobe_ClassSelector(SelectPrev_691);
+
+    }
+
+    // Error decompiling function OnShown: Sequence contains no matching element
+
+    [BlueprintCallable, BlueprintEvent]
+    public void OnHidden() {
+        // Locals
+        int Temp_int_Array_Index_Variable;
+        int Temp_int_Loop_Counter_Variable;
+        int CallFunc_Add_IntInt_ReturnValue;
+        Delegate K2Node_CreateDelegate_OutputDelegate;
+        Delegate K2Node_CreateDelegate_OutputDelegate_1;
+        Object<FSDGameState> CallFunc_GetFSDGameState_ReturnValue;
+        Object<FSDGameState> CallFunc_GetFSDGameState_ReturnValue_1;
+        Object<FSDGameState> CallFunc_GetFSDGameState_ReturnValue_2;
+        Object<PlayerState> CallFunc_Array_Get_Item;
+        Object<FSDPlayerState> K2Node_DynamicCast_AsFSDPlayer_State;
+        bool K2Node_DynamicCast_bSuccess;
+        int CallFunc_Array_Length_ReturnValue;
+        bool CallFunc_Less_IntInt_ReturnValue;
+
+        while (true) {
+            // Block 1
+            BindDelegate("OnPlayerJoin", K2Node_CreateDelegate_OutputDelegate_1, this);
+            LetObj(CallFunc_GetFSDGameState_ReturnValue_2,GameFunctionLibrary.GetFSDGameState(this));
+            RemoveMulticastDelegate(Context(CallFunc_GetFSDGameState_ReturnValue_2, InstanceVariable("OnPlayerJoined")), K2Node_CreateDelegate_OutputDelegate_1);
+            BindDelegate("OnPlayerLeave", K2Node_CreateDelegate_OutputDelegate, this);
+            LetObj(CallFunc_GetFSDGameState_ReturnValue,GameFunctionLibrary.GetFSDGameState(this));
+            RemoveMulticastDelegate(Context(CallFunc_GetFSDGameState_ReturnValue, InstanceVariable("OnPlayerLeave")), K2Node_CreateDelegate_OutputDelegate);
+            LetObj(CallFunc_GetFSDGameState_ReturnValue_1,GameFunctionLibrary.GetFSDGameState(this));
+            Temp_int_Loop_Counter_Variable = 0;
+            Temp_int_Array_Index_Variable = 0;
+
+            // Block 2
+            L_242: CallFunc_Array_Length_ReturnValue = Context(Default__KismetArrayLibrary, FinalFunction("Array_Length", Context(CallFunc_GetFSDGameState_ReturnValue_1, InstanceVariable("PlayerArray"))));
+            CallFunc_Less_IntInt_ReturnValue = (bool)(KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue));
+            if (!(CallFunc_Less_IntInt_ReturnValue)) break;
+
+            // Block 3
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable;
+            PushExecutionFlow(L_573);
+
+            // Block 4
+            Context(Default__KismetArrayLibrary, FinalFunction("Array_Get", Context(CallFunc_GetFSDGameState_ReturnValue_1, InstanceVariable("PlayerArray")), Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item));
+            K2Node_DynamicCast_AsFSDPlayer_State = DynamicCast("FSDPlayerState", CallFunc_Array_Get_Item);
+            K2Node_DynamicCast_bSuccess = PrimitiveCast("1", K2Node_DynamicCast_AsFSDPlayer_State);
+            this.UnbindFromPlayerState(K2Node_DynamicCast_AsFSDPlayer_State);
+            break;
+
+            // Block 5
+            L_573: CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1);
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue;
+            goto L_242;
+
+        }
+
+
+        // Block 6
+        L_647:
+
+    }
+
+    [HasDefaults, BlueprintCallable, BlueprintEvent]
+    private void SetCharacterInfo([BlueprintVisible, BlueprintReadOnly] Object<PlayerCharacterID> CharacterID) {
+        // Locals
+        [InstancedReference] Object<WindowManager> CallFunc_GetWindowManager_ReturnValue;
+        Object<FSDGameInstance> CallFunc_GetFSDGameInstance_ReturnValue;
+        [InstancedReference] Object<WindowWidget> CallFunc_GetCurrentWindow_ReturnValue;
+        int CallFunc_GetHeroLevel_ReturnValue;
+        Object<PlayerCharacterData> CallFunc_GetCharacterData_ReturnValue;
+        Text CallFunc_Conv_IntToText_ReturnValue;
+        const Text CallFunc_GetName_ReturnValue;
+
+        // Block 1
+        LetObj(CallFunc_GetCharacterData_ReturnValue,Context(CharacterID, FinalFunction("GetCharacterData")));
+        CallFunc_GetName_ReturnValue = Context(CallFunc_GetCharacterData_ReturnValue, FinalFunction("GetName"));
+        Context(this.ClassName_Text, LocalVirtualFunction("SetText", CallFunc_GetName_ReturnValue));
+        CallFunc_GetHeroLevel_ReturnValue = ActorFunctionLibrary.GetHeroLevel(this, CharacterID);
+        CallFunc_Conv_IntToText_ReturnValue = KismetTextLibrary.Conv_IntToText(CallFunc_GetHeroLevel_ReturnValue, false, true, 1, 324);
+        Context(this.ClassLevel_Text, LocalVirtualFunction("SetText", CallFunc_Conv_IntToText_ReturnValue));
+        LetObj(CallFunc_GetWindowManager_ReturnValue,GameFunctionLibrary.GetWindowManager(this));
+        LetObj(CallFunc_GetFSDGameInstance_ReturnValue,GameFunctionLibrary.GetFSDGameInstance(this));
+        LetObj(CallFunc_GetCurrentWindow_ReturnValue,Context(CallFunc_GetWindowManager_ReturnValue, FinalFunction("GetCurrentWindow")));
+        Context(CallFunc_GetFSDGameInstance_ReturnValue, FinalFunction("SetPreviewingCharacterID", CallFunc_GetCurrentWindow_ReturnValue, CharacterID));
+
+    }
+
+    [HasOutParms, HasDefaults, BlueprintCallable, BlueprintEvent, BlueprintPure]
+    private void GetNextCharacter(out Object<PlayerCharacterID> Character) {
+        // Locals
+        [Edit, BlueprintVisible] Array<Object<PlayerCharacterID>> Heroes;
+        const ref Array<Object<PlayerCharacterID>> CallFunc_GetAllPlayerCharacterIds_ReturnValue;
+        int CallFunc_Array_LastIndex_ReturnValue;
+        Object<PlayerCharacterID> CallFunc_Array_Get_Item;
+        int CallFunc_Array_Find_ReturnValue;
+        int CallFunc_Add_IntInt_ReturnValue;
+        bool CallFunc_EqualEqual_IntInt_ReturnValue;
+        Object<PlayerCharacterID> CallFunc_Array_Get_Item_1;
+
+        // Block 1
+        CallFunc_GetAllPlayerCharacterIds_ReturnValue = PlayerCharacterFunctionLibrary.GetAllPlayerCharacterIds();
+        Heroes = CallFunc_GetAllPlayerCharacterIds_ReturnValue;
+        CallFunc_Array_LastIndex_ReturnValue = Context(Default__KismetArrayLibrary, FinalFunction("Array_LastIndex", Heroes));
+        CallFunc_Array_Find_ReturnValue = Context(Default__KismetArrayLibrary, FinalFunction("Array_Find", Heroes, InstanceVariable("CurrentCharacter")));
+        CallFunc_EqualEqual_IntInt_ReturnValue = (bool)(KismetMathLibrary.EqualEqual_IntInt(CallFunc_Array_Find_ReturnValue, CallFunc_Array_LastIndex_ReturnValue));
+
+        if (CallFunc_EqualEqual_IntInt_ReturnValue) {
+            // Block 2
+            Context(Default__KismetArrayLibrary, FinalFunction("Array_Get", Heroes, 0, CallFunc_Array_Get_Item));
+            LetObj(Character,CallFunc_Array_Get_Item);
+            return;
+
+        }
+
+
+        // Block 3
+        L_313: CallFunc_Array_Find_ReturnValue = Context(Default__KismetArrayLibrary, FinalFunction("Array_Find", Heroes, InstanceVariable("CurrentCharacter")));
+        CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(CallFunc_Array_Find_ReturnValue, 1);
+        Context(Default__KismetArrayLibrary, FinalFunction("Array_Get", Heroes, CallFunc_Add_IntInt_ReturnValue, CallFunc_Array_Get_Item_1));
+        LetObj(Character,CallFunc_Array_Get_Item_1);
+
+        // Block 4
+        L_501:
+
+    }
+
+    [HasOutParms, BlueprintCallable, BlueprintEvent, BlueprintPure]
+    public void GetCurrentCharacter(out Object<PlayerCharacterID> OutCurrentCharacter) {
+        // Block 1
+        LetObj(OutCurrentCharacter,this.CurrentCharacter);
+
+    }
+
+    [HasOutParms, HasDefaults, BlueprintCallable, BlueprintEvent, BlueprintPure]
+    private void GetPrevCharacter(out Object<PlayerCharacterID> Character) {
+        // Locals
+        [Edit, BlueprintVisible] Array<Object<PlayerCharacterID>> Heroes;
+        const ref Array<Object<PlayerCharacterID>> CallFunc_GetAllPlayerCharacterIds_ReturnValue;
+        int CallFunc_Array_LastIndex_ReturnValue;
+        Object<PlayerCharacterID> CallFunc_Array_Get_Item;
+        int CallFunc_Array_Find_ReturnValue;
+        int CallFunc_Subtract_IntInt_ReturnValue;
+        bool CallFunc_EqualEqual_IntInt_ReturnValue;
+        Object<PlayerCharacterID> CallFunc_Array_Get_Item_1;
+
+        // Block 1
+        CallFunc_GetAllPlayerCharacterIds_ReturnValue = PlayerCharacterFunctionLibrary.GetAllPlayerCharacterIds();
+        Heroes = CallFunc_GetAllPlayerCharacterIds_ReturnValue;
+        CallFunc_Array_Find_ReturnValue = Context(Default__KismetArrayLibrary, FinalFunction("Array_Find", Heroes, InstanceVariable("CurrentCharacter")));
+        CallFunc_EqualEqual_IntInt_ReturnValue = (bool)(KismetMathLibrary.EqualEqual_IntInt(CallFunc_Array_Find_ReturnValue, 0));
+
+        if (CallFunc_EqualEqual_IntInt_ReturnValue) {
+            // Block 2
+            CallFunc_Array_LastIndex_ReturnValue = Context(Default__KismetArrayLibrary, FinalFunction("Array_LastIndex", Heroes));
+            Context(Default__KismetArrayLibrary, FinalFunction("Array_Get", Heroes, CallFunc_Array_LastIndex_ReturnValue, CallFunc_Array_Get_Item));
+            LetObj(Character,CallFunc_Array_Get_Item);
+            return;
+
+        }
+
+
+        // Block 3
+        L_313: CallFunc_Array_Find_ReturnValue = Context(Default__KismetArrayLibrary, FinalFunction("Array_Find", Heroes, InstanceVariable("CurrentCharacter")));
+        CallFunc_Subtract_IntInt_ReturnValue = KismetMathLibrary.Subtract_IntInt(CallFunc_Array_Find_ReturnValue, 1);
+        Context(Default__KismetArrayLibrary, FinalFunction("Array_Get", Heroes, CallFunc_Subtract_IntInt_ReturnValue, CallFunc_Array_Get_Item_1));
+        LetObj(Character,CallFunc_Array_Get_Item_1);
+
+        // Block 4
+        L_501:
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    private void UpdateButtons() {
+        // Locals
+        [Edit, BlueprintVisible] string PlayerThatHavePickedCharacter;
+        [Edit, BlueprintVisible, DisableEditOnTemplate] Object<FSDPlayerState> PlayerState;
+        [Edit, BlueprintVisible] bool IsFirstCharacterPick;
+
+        // Block 1
+        IsFirstCharacterPick = (bool)(false);
+        this.UpdateSwitchButton();
+        Context(this.CharacterCard_Selector, LocalVirtualFunction("UpdateSelectedBy"));
+
+    }
+
+    [HasOutParms, HasDefaults, BlueprintCallable, BlueprintEvent]
+    public void HandleKeyInput([BlueprintVisible, BlueprintReadOnly] out ref Struct<KeyEvent> InKeyEvent, [BlueprintVisible, BlueprintReadOnly] bool IsDown, [Return] out Struct<EventReply> ReturnValue, out bool Handled) {
+        // Locals
+        Struct<EventReply> CallFunc_Unhandled_ReturnValue;
+        bool CallFunc_IsVisible_ReturnValue;
+        bool CallFunc_GetIsOpen_IsOpen;
+        bool CallFunc_Not_PreBool_ReturnValue;
+        bool CallFunc_Not_PreBool_ReturnValue_1;
+        Struct<EventReply> CallFunc_Handled_ReturnValue;
+        bool CallFunc_Not_PreBool_ReturnValue_2;
+        bool CallFunc_BooleanAND_ReturnValue;
+        bool CallFunc_IsKeyEventAction_ReturnValue;
+        Struct<EventReply> CallFunc_Handled_ReturnValue_1;
+        ref Array<Name> K2Node_MakeArray_Array;
+        bool CallFunc_IsKeyEventActionAny_ReturnValue;
+        ref Array<Name> K2Node_MakeArray_Array_1;
+        bool CallFunc_IsKeyEventActionAny_ReturnValue_1;
+
+        while (true) {
+            while (true) {
+                // Block 1
+                CallFunc_Not_PreBool_ReturnValue_1 = (bool)(KismetMathLibrary.Not_PreBool(this.IsInteractionBlocked));
+                CallFunc_Not_PreBool_ReturnValue_2 = (bool)(KismetMathLibrary.Not_PreBool(IsDown));
+                CallFunc_BooleanAND_ReturnValue = (bool)(KismetMathLibrary.BooleanAND(CallFunc_Not_PreBool_ReturnValue_1, CallFunc_Not_PreBool_ReturnValue_2));
+                if (!(CallFunc_BooleanAND_ReturnValue)) break;
+
+                // Block 2
+                PushExecutionFlow(L_473);
+
+                // Block 3
+                PushExecutionFlow(L_368);
+
+                // Block 4
+                K2Node_MakeArray_Array_1 = new[] {NameConst("SelectPrevCharMenu"), NameConst("PrevItemMenu")};
+                CallFunc_IsKeyEventActionAny_ReturnValue_1 = (bool)(InputFunctionLibrary.IsKeyEventActionAny(InKeyEvent, K2Node_MakeArray_Array_1, false));
+                if (!(CallFunc_IsKeyEventActionAny_ReturnValue_1)) break;
+
+                // Block 5
+                this.SelectPrev();
+
+                // Block 6
+                L_226: CallFunc_Handled_ReturnValue_1 = WidgetBlueprintLibrary.Handled();
+                ReturnValue = CallFunc_Handled_ReturnValue_1;
+                Handled = (bool)(true);
+                goto L_828;
+
+            }
+
+
+            // Block 7
+            L_297: CallFunc_Unhandled_ReturnValue = WidgetBlueprintLibrary.Unhandled();
+            ReturnValue = CallFunc_Unhandled_ReturnValue;
+            Handled = (bool)(false);
+            goto L_828;
+
+            // Block 8
+            L_368: K2Node_MakeArray_Array = new[] {NameConst("SelectNextCharMenu"), NameConst("NextItemMenu")};
+            CallFunc_IsKeyEventActionAny_ReturnValue = (bool)(InputFunctionLibrary.IsKeyEventActionAny(InKeyEvent, K2Node_MakeArray_Array, false));
+            if (!CallFunc_IsKeyEventActionAny_ReturnValue) break;
+
+            // Block 9
+            this.SelectNext();
+            goto L_226;
+
+            // Block 10
+            L_473: CallFunc_IsKeyEventAction_ReturnValue = (bool)(InputFunctionLibrary.IsKeyEventAction(InKeyEvent, NameConst("SelectCharacter"), false));
+            if (!CallFunc_IsKeyEventAction_ReturnValue) break;
+
+            // Block 11
+            CallFunc_IsVisible_ReturnValue = (bool)(Context(this.Switch_Button, FinalFunction("IsVisible")));
+
+            if (CallFunc_IsVisible_ReturnValue) {
+                // Block 12
+                this.SwitchToCharacter();
+                break;
+
+            }
+
+
+            // Block 13
+            L_597: Context(this.CharacterCard_Selector, LocalVirtualFunction("GetIsOpen", CallFunc_GetIsOpen_IsOpen));
+            CallFunc_Not_PreBool_ReturnValue = (bool)(KismetMathLibrary.Not_PreBool(CallFunc_GetIsOpen_IsOpen));
+            if (!CallFunc_Not_PreBool_ReturnValue) break;
+
+            // Block 14
+            Context(this.CharacterCard_Selector, LocalVirtualFunction("PopUp"));
+            Context(this.CharacterCard_Selector, LocalVirtualFunction("SetCurrentCharacter", InstanceVariable("CurrentCharacter")));
+            CallFunc_Handled_ReturnValue = WidgetBlueprintLibrary.Handled();
+            ReturnValue = CallFunc_Handled_ReturnValue;
+            Handled = (bool)(true);
+
+        }
+
+
+        // Block 15
+        L_828: return ReturnValue;
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    private void SetHoverProgress([BlueprintVisible, BlueprintReadOnly] Double InValue) {
+        // Locals
+        bool Temp_bool_Variable;
+        Enum Temp_byte_Variable;
+        Enum Temp_byte_Variable_1;
+        bool CallFunc_Greater_DoubleDouble_ReturnValue;
+        Double CallFunc_FClamp_ReturnValue;
+        Enum K2Node_Select_Default;
+        float CallFunc_SetRenderOpacity_InOpacity_ImplicitCast;
+
+        // Block 1
+        this.HoverProgress = InValue;
+        CallFunc_SetRenderOpacity_InOpacity_ImplicitCast = PrimitiveCast("3", CallFunc_FClamp_ReturnValue);
+        Context(this.Gradient_Image, FinalFunction("SetRenderOpacity", CallFunc_SetRenderOpacity_InOpacity_ImplicitCast));
+        Temp_byte_Variable = (byte)(4);
+        Temp_byte_Variable_1 = (byte)(1);
+        Temp_bool_Variable = (bool)(CallFunc_Greater_DoubleDouble_ReturnValue);
+        Context(this.Gradient_Image, VirtualFunction("SetVisibility", SwitchValue(337, Temp_bool_Variable, K2Node_Select_Default, false, 314, Temp_byte_Variable_1, true, 328, Temp_byte_Variable)));
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    public void ForceOpenSelector() {
+        // Block 1
+        Context(this.CharacterCard_Selector, LocalVirtualFunction("SetAutoHideEnabled", false));
+        Context(this.CharacterCard_Selector, LocalVirtualFunction("SetIsOpen", true));
+        Context(this.CharacterCard_Selector, LocalVirtualFunction("SetCurrentCharacter", InstanceVariable("CurrentCharacter")));
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    private void BindToPlayerState([BlueprintVisible, BlueprintReadOnly] Object<FSDPlayerState> PlayerState) {
+        // Locals
+        Delegate K2Node_CreateDelegate_OutputDelegate;
+
+        // Block 1
+        BindDelegate("OnClassSelected", K2Node_CreateDelegate_OutputDelegate, this);
+        AddMulticastDelegate(Context(PlayerState, InstanceVariable("OnSelectedCharacterChanged")), K2Node_CreateDelegate_OutputDelegate);
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    private void UnbindFromPlayerState([BlueprintVisible, BlueprintReadOnly] Object<FSDPlayerState> PlayerState) {
+        // Locals
+        Delegate K2Node_CreateDelegate_OutputDelegate;
+
+        // Block 1
+        BindDelegate("OnClassSelected", K2Node_CreateDelegate_OutputDelegate, this);
+        RemoveMulticastDelegate(Context(PlayerState, InstanceVariable("OnSelectedCharacterChanged")), K2Node_CreateDelegate_OutputDelegate);
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    private void OnClassSelected([BlueprintVisible, BlueprintReadOnly, UObjectWrapper] Class NewCharacter) {
+        // Block 1
+        this.UpdateButtons();
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    private void OnPlayerJoin([BlueprintVisible, BlueprintReadOnly] Object<FSDPlayerState> PlayerState) {
+        // Block 1
+        this.BindToPlayerState(PlayerState);
+        this.UpdateButtons();
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    private void OnPlayerLeave([BlueprintVisible, BlueprintReadOnly] Object<FSDPlayerState> PlayerState) {
+        // Block 1
+        this.UnbindFromPlayerState(PlayerState);
+        this.UpdateButtons();
+
+    }
+
+    [HasOutParms, HasDefaults, BlueprintCallable, BlueprintEvent, BlueprintPure]
+    public void CanSwitchToCharacter([BlueprintVisible, BlueprintReadOnly] Object<PlayerCharacterID> InCharacter, out bool OutCanSwitch) {
+        // Locals
+        bool Temp_bool_Variable;
+        const Object<FSDPlayerState> Temp_object_Variable;
+        bool CallFunc_EqualEqual_ByteByte_ReturnValue;
+        Object<FSDGameState> CallFunc_GetFSDGameState_ReturnValue;
+        Object<FSDPlayerState> CallFunc_GetOwningFSDPlayerState_ReturnValue;
+        bool CallFunc_ArePlayersAllowedToPickSameClass_ReturnValue;
+        const Object<FSDPlayerState> K2Node_Select_Default;
+        ref Array<Object<PlayerCharacterID>> CallFunc_GetFreePlayerCharacterIds_ReturnValue;
+        bool CallFunc_Array_Contains_ReturnValue;
+        bool CallFunc_BooleanOR_ReturnValue;
+        bool CallFunc_BooleanAND_ReturnValue;
+
+        // Block 1
+        // MOD: allow repeated class selection — always permit switching.
+        OutCanSwitch = true;
+
+    }
+
+    // Error decompiling function UpdateSwitchButton: Sequence contains no matching element
+
+    [BlueprintCallable, BlueprintEvent]
+    private void TrySwitchCharacter() {
+        // Locals
+        [Edit, BlueprintVisible, DisableEditOnTemplate] Object<FSDPlayerController> PlayerController;
+        [InstancedReference] Object<WindowManager> CallFunc_GetWindowManager_ReturnValue;
+        [InstancedReference] Object<WND_CharacterSelector_Pending_C> CallFunc_OpenWindowFromClass_ReturnValue;
+        Delegate K2Node_CreateDelegate_OutputDelegate;
+        Delegate K2Node_CreateDelegate_OutputDelegate_1;
+        Object<PlayerController> CallFunc_GetOwningPlayer_ReturnValue;
+        Object<FSDPlayerController> K2Node_DynamicCast_AsFSDPlayer_Controller;
+        bool K2Node_DynamicCast_bSuccess;
+
+        // Block 1
+        CallMulticastDelegate(this.OnRequestCharacterSwitch__DelegateSignature, this.CurrentCharacter, this.OnRequestCharacterSwitch);
+        LetObj(CallFunc_GetOwningPlayer_ReturnValue,this.GetOwningPlayer());
+        K2Node_DynamicCast_AsFSDPlayer_Controller = DynamicCast("FSDPlayerController", CallFunc_GetOwningPlayer_ReturnValue);
+        K2Node_DynamicCast_bSuccess = PrimitiveCast("1", K2Node_DynamicCast_AsFSDPlayer_Controller);
+        if (!K2Node_DynamicCast_bSuccess) return;
+
+        // Block 2
+        LetObj(PlayerController,K2Node_DynamicCast_AsFSDPlayer_Controller);
+        BindDelegate("OnPlayerClassChangesSuccess", K2Node_CreateDelegate_OutputDelegate_1, this);
+        AddMulticastDelegate(Context(PlayerController, InstanceVariable("OnPlayerClassChangeSuccess")), K2Node_CreateDelegate_OutputDelegate_1);
+        BindDelegate("OnPlayerClassChangesFailure", K2Node_CreateDelegate_OutputDelegate, this);
+        AddMulticastDelegate(Context(PlayerController, InstanceVariable("OnPlayerClassChangeFailure")), K2Node_CreateDelegate_OutputDelegate);
+        LetObj(CallFunc_GetWindowManager_ReturnValue,GameFunctionLibrary.GetWindowManager(this));
+        LetObj(CallFunc_OpenWindowFromClass_ReturnValue,Context(CallFunc_GetWindowManager_ReturnValue, FinalFunction("OpenWindowFromClass", WND_CharacterSelector_Pending_C, 10000, true)));
+        Context(this.CharacterCard_Selector, LocalVirtualFunction("StopHideTimer"));
+        Context(this.CharacterCard_Selector, LocalVirtualFunction("SetPendingCharacter", InstanceVariable("CurrentCharacter")));
+        Context(PlayerController, LocalVirtualFunction("RequestChangeToPlayerClass", InstanceVariable("CurrentCharacter")));
+
+        // Block 3
+        L_482:
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    private void OnPlayerClassChangesSuccess() {
+        // Block 1
+        this.OnPlayerClassChangeCompleted(true);
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    private void OnPlayerClassChangesFailure() {
+        // Block 1
+        this.OnPlayerClassChangeCompleted(false);
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    private void OnPlayerClassChangeCompleted([BlueprintVisible, BlueprintReadOnly] bool InSuccess) {
+        // Locals
+        bool Temp_bool_Variable;
+        Object<SoundBase> Temp_object_Variable;
+        Object<SoundBase> Temp_object_Variable_1;
+        Object<SoundBase> K2Node_Select_Default;
+        [InstancedReference] Object<WindowManager> CallFunc_GetWindowManager_ReturnValue;
+
+        // Block 1
+        Context(this.CharacterCard_Selector, LocalVirtualFunction("SetPendingCharacter", NoObject()));
+        LetObj(CallFunc_GetWindowManager_ReturnValue,GameFunctionLibrary.GetWindowManager(this));
+        Context(CallFunc_GetWindowManager_ReturnValue, FinalFunction("CloseWindowClass", WND_CharacterSelector_Pending_C, true));
+        this.UnbindFromPlayerController();
+        LetObj(Temp_object_Variable,UI_Select_01_Cue);
+        LetObj(Temp_object_Variable_1,UI_Error_01_Cue);
+        Temp_bool_Variable = (bool)(InSuccess);
+        Context(Default__GameplayStatics, FinalFunction("PlaySound2D", this, SwitchValue(256, Temp_bool_Variable, K2Node_Select_Default, false, 233, Temp_object_Variable_1, true, 247, Temp_object_Variable), 1f, 1f, 0f, NoObject(), NoObject(), true));
+        if (!InSuccess) return;
+
+        // Block 2
+        this.CloseSelectorWithMontage();
+
+        // Block 3
+        L_303:
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    private void UnbindFromPlayerController() {
+        // Locals
+        [Edit, BlueprintVisible, DisableEditOnTemplate] Object<FSDPlayerController> PlayerController;
+        Delegate K2Node_CreateDelegate_OutputDelegate;
+        Delegate K2Node_CreateDelegate_OutputDelegate_1;
+        Object<PlayerController> CallFunc_GetOwningPlayer_ReturnValue;
+        Object<FSDPlayerController> K2Node_DynamicCast_AsFSDPlayer_Controller;
+        bool K2Node_DynamicCast_bSuccess;
+
+        // Block 1
+        LetObj(CallFunc_GetOwningPlayer_ReturnValue,this.GetOwningPlayer());
+        K2Node_DynamicCast_AsFSDPlayer_Controller = DynamicCast("FSDPlayerController", CallFunc_GetOwningPlayer_ReturnValue);
+        K2Node_DynamicCast_bSuccess = PrimitiveCast("1", K2Node_DynamicCast_AsFSDPlayer_Controller);
+        if (!K2Node_DynamicCast_bSuccess) return;
+
+        // Block 2
+        LetObj(PlayerController,K2Node_DynamicCast_AsFSDPlayer_Controller);
+        BindDelegate("OnPlayerClassChangesSuccess", K2Node_CreateDelegate_OutputDelegate_1, this);
+        RemoveMulticastDelegate(Context(PlayerController, InstanceVariable("OnPlayerClassChangeSuccess")), K2Node_CreateDelegate_OutputDelegate_1);
+        BindDelegate("OnPlayerClassChangesFailure", K2Node_CreateDelegate_OutputDelegate, this);
+        RemoveMulticastDelegate(Context(PlayerController, InstanceVariable("OnPlayerClassChangeFailure")), K2Node_CreateDelegate_OutputDelegate);
+
+        // Block 3
+        L_250:
+
+    }
+
+    [HasDefaults, BlueprintCallable, BlueprintEvent]
+    private void UpdateVanityNotification() {
+        // Locals
+        bool Temp_bool_Variable;
+        Enum Temp_byte_Variable;
+        Enum Temp_byte_Variable_1;
+        ref Array<Object<Object>> K2Node_MakeArray_Array;
+        bool CallFunc_CheckItemUINotification_HasNotification;
+        bool CallFunc_IsInItemUINotificationSet_ReturnValue;
+        bool CallFunc_IsValid_ReturnValue;
+        ref Array<Object<Object>> K2Node_MakeArray_Array_1;
+        bool CallFunc_CheckItemUINotification_HasNotification_1;
+        bool CallFunc_BooleanOR_ReturnValue;
+        Enum K2Node_Select_Default;
+
+        while (true) {
+            // Block 1
+            PushExecutionFlow(L_393);
+
+            // Block 2
+            CallFunc_IsValid_ReturnValue = (bool)(KismetSystemLibrary.IsValid(this.VanityCategoryId));
+
+            if (CallFunc_IsValid_ReturnValue) {
+                // Block 3
+                CallFunc_IsInItemUINotificationSet_ReturnValue = (bool)(UIFunctionLibrary.IsInItemUINotificationSet(this, this.VanityCategoryId));
+                if (!(CallFunc_IsInItemUINotificationSet_ReturnValue)) goto L_478;
+
+                // Block 4
+                Temp_byte_Variable = (byte)(4);
+                Temp_byte_Variable_1 = (byte)(1);
+                K2Node_MakeArray_Array = new[] {this.VanityCategoryId};
+                UIFunctionLibrary.CheckItemUINotification(this, K2Node_MakeArray_Array, CallFunc_CheckItemUINotification_HasNotification, true);
+                K2Node_MakeArray_Array_1 = new[] {this.CurrentCharacter, this.VanityCategoryId};
+                UIFunctionLibrary.CheckItemUINotification(this, K2Node_MakeArray_Array_1, CallFunc_CheckItemUINotification_HasNotification_1, true);
+                CallFunc_BooleanOR_ReturnValue = (bool)(KismetMathLibrary.BooleanOR(CallFunc_CheckItemUINotification_HasNotification_1, CallFunc_CheckItemUINotification_HasNotification));
+                Temp_bool_Variable = (bool)(CallFunc_BooleanOR_ReturnValue);
+                Context(this.NotificationIcon, VirtualFunction("SetVisibility", SwitchValue(391, Temp_bool_Variable, K2Node_Select_Default, false, 368, Temp_byte_Variable_1, true, 382, Temp_byte_Variable)));
+                break;
+
+                // Block 5
+                L_393: Context(this.CharacterCard_Selector, LocalVirtualFunction("SetVanityCategory", InstanceVariable("VanityCategoryId")));
+                break;
+
+            }
+
+
+            // Block 6
+            L_439: Context(this.NotificationIcon, VirtualFunction("SetVisibility", (byte)(1)));
+            break;
+
+            // Block 7
+            L_478: Context(this.NotificationIcon, VirtualFunction("SetVisibility", (byte)(1)));
+            break;
+
+        }
+
+
+        // Block 8
+        L_517:
+
+    }
+
+    [BlueprintCallable, BlueprintEvent]
+    private void CloseSelectorWithMontage() {
+        // Block 1
+        CharacterShowroomController.PlayShowroomCharacterSelectionMontage(this);
+        Context(this.Switch_Button, VirtualFunction("SetVisibility", (byte)(2)));
+        Context(this.CharacterCard_Selector, LocalVirtualFunction("SetIsOpen", false));
+
+    }
+
+}

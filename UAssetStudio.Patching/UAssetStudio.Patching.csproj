@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>UAssetStudio.Patching</RootNamespace>
+    <AssemblyName>UAssetStudio.Patching</AssemblyName>
+    <LangVersion>12</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UAssetAPI\UAssetAPI\UAssetAPI.csproj" />
+    <ProjectReference Include="..\KismetScript.Compiler\KismetScript.Compiler.csproj" />
+    <ProjectReference Include="..\KismetScript.Linker\KismetScript.Linker.csproj" />
+    <ProjectReference Include="..\KismetScript.Parser\KismetScript.Parser.csproj" />
+    <ProjectReference Include="..\KismetScript.Decompiler\KismetScript.Decompiler.csproj" />
+  </ItemGroup>
+
+</Project>
