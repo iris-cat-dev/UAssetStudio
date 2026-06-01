@@ -11,17 +11,19 @@ internal static class JsonCommandBuilder
     {
         var inputArg = new Argument<string>("input", description: "Path to .uasset/.umap/.json");
         var outputOpt = new Option<string?>("--out", description: "Output file; default is derived from the input path");
+        var sourceAssetOpt = new Option<string?>("--asset", description: "Original .uasset/.umap to borrow schemas from when importing JSON");
 
         var json = new Command("json", "Convert assets between binary (.uasset/.umap) and JSON")
         {
             inputArg,
             outputOpt,
+            sourceAssetOpt,
         };
 
         json.AddOption(ueVersion);
         json.AddOption(mappings);
 
-        json.SetHandler((EngineVersion version, string? mappingsPath, string inputPath, string? outputPath) =>
+        json.SetHandler((EngineVersion version, string? mappingsPath, string inputPath, string? outputPath, string? sourceAssetPath) =>
         {
             if (!File.Exists(inputPath))
             {
@@ -49,15 +51,19 @@ internal static class JsonCommandBuilder
                 }
                 else
                 {
-                    ConvertJsonToAsset(mappingsPath, inputPath, outputPath);
+                    ConvertJsonToAsset(version, mappingsPath, inputPath, outputPath, sourceAssetPath);
                 }
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"Conversion failed: {ex.GetType().Name}: {ex.Message}");
+                if (isJson && IsMissingSchemaException(ex))
+                {
+                    Console.Error.WriteLine("Hint: JSON import for inherited Blueprint assets may need --asset <original .uasset/.umap> so the CLI can borrow schemas collected while reading the original binary asset.");
+                }
                 Environment.ExitCode = 1;
             }
-        }, ueVersion, mappings, inputArg, outputOpt);
+        }, ueVersion, mappings, inputArg, outputOpt, sourceAssetOpt);
 
         return json;
     }
@@ -73,12 +79,22 @@ internal static class JsonCommandBuilder
         Console.WriteLine($"Exported JSON: {outPath}");
     }
 
-    private static void ConvertJsonToAsset(string? mappingsPath, string inputPath, string? outputPath)
+    private static void ConvertJsonToAsset(EngineVersion version, string? mappingsPath, string inputPath, string? outputPath, string? sourceAssetPath)
     {
         var jsonText = File.ReadAllText(inputPath);
         var asset = UAsset.DeserializeJson(jsonText);
 
-        if (!string.IsNullOrEmpty(mappingsPath))
+        if (!string.IsNullOrEmpty(sourceAssetPath))
+        {
+            if (!File.Exists(sourceAssetPath))
+            {
+                throw new FileNotFoundException("Source asset file not found", sourceAssetPath);
+            }
+
+            var sourceAsset = CliHelpers.LoadAsset(version, mappingsPath, sourceAssetPath);
+            asset.Mappings = sourceAsset.Mappings;
+        }
+        else if (!string.IsNullOrEmpty(mappingsPath))
         {
             if (!File.Exists(mappingsPath))
             {
@@ -108,5 +124,11 @@ internal static class JsonCommandBuilder
         {
             Directory.CreateDirectory(dir);
         }
+    }
+
+    private static bool IsMissingSchemaException(Exception ex)
+    {
+        return ex is FormatException &&
+            ex.Message.Contains("Failed to find a valid schema", StringComparison.OrdinalIgnoreCase);
     }
 }

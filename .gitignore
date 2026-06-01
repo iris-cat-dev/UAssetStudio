@@ -57,3 +57,6 @@ nunit-*.xml
 .idea
 script/output
 .vs/
+
+analysis
+output

@@ -1251,17 +1251,13 @@ public abstract partial class PackageLinker<T> where T : UnrealPackage
                             {
                                 // Mark for post-processing type conversion (can't change type in-place)
                                 vfQueue.Dequeue();
-                                var replacement = new EX_FinalFunction()
-                                {
-                                    StackNode = preserved.StackNode,
-                                    Parameters = expr.Parameters
-                                };
-                                // Restore ubergraph entry point offset if preserved
-                                if (preserved.UbergraphOffset.HasValue &&
-                                    replacement.Parameters.Length == 1 && replacement.Parameters[0] is EX_IntConst intParam2)
-                                {
-                                    intParam2.Value = preserved.UbergraphOffset.Value;
-                                }
+                                var replacement = CreateFinalFunctionReplacement(preserved.ExprType, preserved.StackNode, expr.Parameters)
+                                    ?? new EX_FinalFunction()
+                                    {
+                                        StackNode = preserved.StackNode,
+                                        Parameters = expr.Parameters
+                                    };
+                                RestoreUbergraphOffset(preserved, ((EX_FinalFunction)replacement).Parameters);
                                 _pendingExprReplacements[expr] = replacement;
                                 break;
                             }
@@ -1313,35 +1309,28 @@ public abstract partial class PackageLinker<T> where T : UnrealPackage
                     break;
 
                 case EX_FinalFunction expr:
-                    // Try to reuse preserved original StackNode to maintain correct import/export references
-                    if (expr.StackNode is IntermediatePackageIndex iStackNode)
+                    // Try to reuse preserved original StackNode and exact expression type
+                    // to maintain correct import/export references and call opcode semantics.
                     {
-                        var funcName = iStackNode.Symbol.Name;
-                        if (_originalFunctionCalls.TryGetValue(funcName, out var stackQueue) && stackQueue.Count > 0)
+                        var funcName = GetFinalFunctionName(expr.StackNode);
+                        if (funcName != null && _originalFunctionCalls.TryGetValue(funcName, out var stackQueue) && stackQueue.Count > 0)
                         {
                             var preserved = stackQueue.Peek();
                             if (preserved.StackNode != null)
                             {
                                 stackQueue.Dequeue();
                                 expr.StackNode = preserved.StackNode;
-                                // Restore ubergraph entry point offset if preserved
-                                if (preserved.UbergraphOffset.HasValue &&
-                                    expr.Parameters.Length == 1 && expr.Parameters[0] is EX_IntConst intParam)
+                                RestoreUbergraphOffset(preserved, expr.Parameters);
+
+                                // Check for FinalFunction subtype mismatch (e.g., EX_LocalFinalFunction).
+                                // This also covers calls whose StackNode has already resolved to a concrete
+                                // FPackageIndex before this fixup runs.
+                                if (preserved.ExprType != expr.GetType())
                                 {
-                                    intParam.Value = preserved.UbergraphOffset.Value;
-                                }
-                                // Check for FinalFunction subtype mismatch (e.g., EX_LocalFinalFunction)
-                                if (preserved.ExprType != expr.GetType() &&
-                                    preserved.ExprType.IsSubclassOf(typeof(EX_FinalFunction)) &&
-                                    preserved.ExprType != typeof(EX_CallMath) && preserved.ExprType != typeof(EX_CallMulticastDelegate))
-                                {
-                                    if (preserved.ExprType == typeof(EX_LocalFinalFunction))
+                                    var replacement = CreateFinalFunctionReplacement(preserved.ExprType, expr.StackNode, expr.Parameters);
+                                    if (replacement != null)
                                     {
-                                        _pendingExprReplacements[expr] = new EX_LocalFinalFunction()
-                                        {
-                                            StackNode = expr.StackNode,
-                                            Parameters = expr.Parameters
-                                        };
+                                        _pendingExprReplacements[expr] = replacement;
                                     }
                                 }
                                 break;
@@ -2229,6 +2218,56 @@ public abstract partial class PackageLinker<T> where T : UnrealPackage
             _originalFunctionCalls[funcName] = queue;
         }
         queue.Enqueue(call);
+    }
+
+    private string? GetFinalFunctionName(FPackageIndex? stackNode)
+    {
+        if (stackNode == null || stackNode.IsNull())
+            return null;
+
+        if (stackNode is IntermediatePackageIndex intermediate)
+            return intermediate.Symbol.Name;
+
+        if (stackNode.IsImport())
+            return stackNode.ToImport(Package)?.ObjectName?.ToString();
+
+        if (stackNode.IsExport())
+            return stackNode.ToExport(Package)?.ObjectName?.ToString();
+
+        return null;
+    }
+
+    private static EX_FinalFunction? CreateFinalFunctionReplacement(Type preservedType, FPackageIndex stackNode, KismetExpression[] parameters)
+    {
+        if (preservedType == typeof(EX_LocalFinalFunction))
+        {
+            return new EX_LocalFinalFunction()
+            {
+                StackNode = stackNode,
+                Parameters = parameters
+            };
+        }
+
+        if (preservedType == typeof(EX_FinalFunction))
+        {
+            return new EX_FinalFunction()
+            {
+                StackNode = stackNode,
+                Parameters = parameters
+            };
+        }
+
+        return null;
+    }
+
+    private static void RestoreUbergraphOffset(PreservedFunctionCall preserved, KismetExpression[] parameters)
+    {
+        if (preserved.UbergraphOffset.HasValue &&
+            parameters.Length == 1 &&
+            parameters[0] is EX_IntConst intParam)
+        {
+            intParam.Value = preserved.UbergraphOffset.Value;
+        }
     }
 
     private void TryPreserveFieldPath(string propertyName, FFieldPath fieldPath, PropertyPointerKind kind)

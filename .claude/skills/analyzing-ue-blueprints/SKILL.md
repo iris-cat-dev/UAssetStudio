@@ -1,19 +1,34 @@
 ---
 name: analyzing-ue-blueprints
-description: Analyze Unreal Engine Blueprint assets (.uasset) using UAssetStudio. Use when decompiling blueprints to .kms scripts, generating control flow graphs (CFG/DOT), validating asset integrity, converting assets to JSON, extracting metadata, or understanding Blueprint bytecode structure. Also use when the user asks about Kismet bytecode, Blueprint functions, or UE asset internals.
+description: Analyze Unreal Engine Blueprint assets (.uasset) using UAssetStudio. Prefer the Windows x64 single-file CLI (UAssetStudio.Cli.exe) or dotnet run from source. Use when decompiling blueprints to .kms scripts, generating control flow graphs (CFG/DOT), validating asset integrity, converting assets to JSON, extracting metadata, or understanding Blueprint bytecode structure. Also use when the user asks about Kismet bytecode, Blueprint functions, or UE asset internals.
 ---
 
 # Analyzing UE Blueprints
 
 ## Prerequisites
 
-- UAssetStudio CLI built (`dotnet build`)
+- **CLI:** Prefer the published **Windows x64 single-file** binary (self-contained, no .NET install on the target machine). Default artifact path (from repo root): `UAssetStudio.Cli.exe`. Example absolute path: `UAssetStudio.Cli.exe`. Run the `.exe` on **Windows x64** (or an environment that executes WinPE). On **macOS/Linux** for local runs, use `dotnet run --project UAssetStudio.Cli -- …` from the repository instead.
 - For UE5+ assets: `.usmap` mappings file
 - For UE4 assets: mappings optional
 
 ## Analysis Commands
 
-All commands use this base pattern:
+Set `UAS_CLI` to your single-file exe (or rely on the default below). From repository root:
+
+```bash
+export UAS_CLI="${UAS_CLI:-UAssetStudio.Cli.exe}"
+```
+
+All commands use this base pattern (same flags as `dotnet run`; only the invoker changes):
+
+```bash
+"$UAS_CLI" <command> <asset> \
+  [--mappings <usmap>] \
+  --ue-version <VER_UE4_27|VER_UE5_6> \
+  --outdir <dir>
+```
+
+**Development from source (any OS with .NET SDK):**
 
 ```bash
 dotnet run --project UAssetStudio.Cli -- <command> <asset> \
@@ -27,11 +42,11 @@ dotnet run --project UAssetStudio.Cli -- <command> <asset> \
 Converts `.uasset` to `.kms` (Kismet Script), showing classes, functions, properties, and bytecode logic.
 
 ```bash
-dotnet run --project UAssetStudio.Cli -- decompile <asset.uasset> \
+"$UAS_CLI" decompile <asset.uasset> \
   --ue-version VER_UE4_27 --outdir ./output
 
 # With metadata extraction (captures full asset context):
-dotnet run --project UAssetStudio.Cli -- decompile <asset.uasset> \
+"$UAS_CLI" decompile <asset.uasset> \
   --ue-version VER_UE5_6 --mappings <usmap> --outdir ./output --meta
 ```
 
@@ -42,7 +57,7 @@ dotnet run --project UAssetStudio.Cli -- decompile <asset.uasset> \
 Generates Graphviz DOT and text summary of bytecode control flow per function.
 
 ```bash
-dotnet run --project UAssetStudio.Cli -- cfg <asset.uasset> \
+"$UAS_CLI" cfg <asset.uasset> \
   --ue-version VER_UE5_6 --mappings <usmap> --outdir ./output
 ```
 
@@ -60,11 +75,11 @@ dot -Tsvg output/MyBlueprint.dot -o output/MyBlueprint.svg
 Checks FPackageIndex consistency, class references, and optionally verifies imports exist on disk.
 
 ```bash
-dotnet run --project UAssetStudio.Cli -- validate <asset.uasset> \
+"$UAS_CLI" validate <asset.uasset> \
   --ue-version VER_UE4_27
 
 # With import existence check (provide game Content directory):
-dotnet run --project UAssetStudio.Cli -- validate <asset.uasset> \
+"$UAS_CLI" validate <asset.uasset> \
   --ue-version VER_UE5_6 --mappings <usmap> \
   --game-content /path/to/Game/Content
 ```
@@ -76,16 +91,33 @@ dotnet run --project UAssetStudio.Cli -- validate <asset.uasset> \
 Converts asset to JSON for programmatic inspection of all exports, imports, and properties.
 
 ```bash
-dotnet run --project UAssetStudio.Cli -- json <asset.uasset> \
-  --ue-version VER_UE4_27 --outdir ./output
+"$UAS_CLI" json <asset.uasset> \
+  --ue-version VER_UE4_27 --out ./output/asset.json
 ```
+
+For editing UE5 Blueprint assets through JSON, import the modified JSON with the original asset path so the CLI can borrow schemas collected while reading the binary asset:
+
+```bash
+"$UAS_CLI" json modified.asset.json \
+  --mappings DRG_RC_Mappings.usmap \
+  --ue-version VER_UE5_6 \
+  --asset /path/to/original.uasset \
+  --out /path/to/output.uasset
+```
+
+### Choosing an Asset Modification Workflow
+
+- For simple bytecode or Blueprint logic edits, use `decompile` to `.kms`, edit the script, then `compile` back to an asset.
+- For value, array, spawn-weight, or object-reference edits in complex UE5 Blueprint/DataAsset files, prefer JSON export, structured JSON edits, then JSON import with `--asset <original.uasset>`.
+- Avoid using `.kms` compilation for large inherited Blueprints or large Ubergraphs when decompilation reports errors such as `Error decompiling function ... Sequence contains no matching element`; the `.kms` is not a reliable round-trip source in that case.
+- The `--asset` argument matters for inherited UE5 Blueprints because JSON deserialization does not replay the binary read path that collects Blueprint-generated and parent-class schemas. Loading the original binary asset first lets JSON import reuse those collected schemas.
 
 ### 5. Verify — Round-trip Integrity
 
 Tests decompile → compile → link → write and compares binary equality.
 
 ```bash
-dotnet run --project UAssetStudio.Cli -- verify <asset.uasset> \
+"$UAS_CLI" verify <asset.uasset> \
   --ue-version VER_UE4_27 --outdir ./output [--meta]
 ```
 
@@ -205,22 +237,23 @@ The `.kms.meta` JSON contains:
 Complete analysis pipeline — decompile, generate CFG, validate, and inspect:
 
 ```bash
+export UAS_CLI="${UAS_CLI:-UAssetStudio.Cli.exe}"
 ASSET="path/to/BP_MyActor.uasset"
 VER="VER_UE4_27"
 OUT="./analysis"
 mkdir -p "$OUT"
 
 # Decompile to readable script with metadata
-dotnet run --project UAssetStudio.Cli -- decompile "$ASSET" --ue-version $VER --outdir "$OUT" --meta
+"$UAS_CLI" decompile "$ASSET" --ue-version $VER --outdir "$OUT" --meta
 
 # Generate control flow graph
-dotnet run --project UAssetStudio.Cli -- cfg "$ASSET" --ue-version $VER --outdir "$OUT"
+"$UAS_CLI" cfg "$ASSET" --ue-version $VER --outdir "$OUT"
 
 # Validate structure
-dotnet run --project UAssetStudio.Cli -- validate "$ASSET" --ue-version $VER
+"$UAS_CLI" validate "$ASSET" --ue-version $VER
 
 # Dump to JSON for detailed inspection
-dotnet run --project UAssetStudio.Cli -- json "$ASSET" --ue-version $VER --outdir "$OUT"
+"$UAS_CLI" json "$ASSET" --ue-version $VER --outdir "$OUT"
 ```
 
 Then read the generated files:
@@ -235,8 +268,8 @@ Then read the generated files:
 Decompile both and diff the .kms output:
 
 ```bash
-dotnet run --project UAssetStudio.Cli -- decompile asset_v1.uasset --ue-version $VER --outdir ./v1
-dotnet run --project UAssetStudio.Cli -- decompile asset_v2.uasset --ue-version $VER --outdir ./v2
+"$UAS_CLI" decompile asset_v1.uasset --ue-version $VER --outdir ./v1
+"$UAS_CLI" decompile asset_v2.uasset --ue-version $VER --outdir ./v2
 diff ./v1/*.kms ./v2/*.kms
 ```
 
@@ -245,7 +278,7 @@ diff ./v1/*.kms ./v2/*.kms
 UE5+ assets require `.usmap` for unversioned property parsing:
 
 ```bash
-dotnet run --project UAssetStudio.Cli -- decompile BP_Player.uasset \
+"$UAS_CLI" decompile BP_Player.uasset \
   --mappings DRG_RC_Mappings.usmap \
   --ue-version VER_UE5_6 \
   --outdir ./output --meta
@@ -258,7 +291,7 @@ Analyze all blueprints in a directory:
 ```bash
 for f in /path/to/assets/BP_*.uasset; do
   name=$(basename "${f%.uasset}")
-  dotnet run --project UAssetStudio.Cli -- decompile "$f" \
+  "$UAS_CLI" decompile "$f" \
     --ue-version VER_UE4_27 --outdir "./output/$name"
 done
 ```
