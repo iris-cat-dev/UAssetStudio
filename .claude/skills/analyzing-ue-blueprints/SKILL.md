@@ -1,6 +1,6 @@
 ---
 name: analyzing-ue-blueprints
-description: Analyze and modify Unreal Engine Blueprint assets (.uasset) using UAssetStudio. Prefer the Windows x64 single-file CLI (UAssetStudio.Cli.exe) or dotnet run from source. Use when decompiling blueprints to .kms scripts, generating control flow graphs (CFG/DOT), validating asset integrity, converting assets to JSON, extracting metadata, surgically patching a single function's bytecode (compile --only-func), running reproducible code-recipe mods (mods run), or understanding Blueprint bytecode structure. Every command supports a machine-readable --json mode. Also use when the user asks about Kismet bytecode, Blueprint functions, or UE asset internals.
+description: Analyze and modify Unreal Engine Blueprint assets (.uasset) using UAssetStudio. Prefer the Windows x64 single-file CLI (UAssetStudio.Cli.exe) or dotnet run from source. Use when decompiling blueprints to .kms scripts, generating control flow graphs (CFG/DOT), validating asset integrity, converting assets to JSON, extracting metadata, applying KMS-first safe patch compile, running reproducible code-recipe mods (mods run), or understanding Blueprint bytecode structure. Every command supports a machine-readable --json mode. Also use when the user asks about Kismet bytecode, Blueprint functions, or UE asset internals.
 ---
 
 # Analyzing UE Blueprints
@@ -41,7 +41,7 @@ Agent guidance:
 
 - Always pass `--json` and branch on `Status` / exit code, not on stdout text.
 - Read produced file paths from `Outputs` (do not guess them).
-- `Data` carries verification details — e.g. `compile --only-func` reports `patchedFunctions`, `validate` reports `errors`/`warnings`, `verify` reports `verified`.
+- `Data` carries verification details — e.g. default `compile` reports `Mode: "patch"`, `ChangedFunctions`, and `ChangedProperties`; `validate` reports `errors`/`warnings`; `verify` reports `verified`.
 - Option naming: `--outdir` is the canonical output-directory flag and `--out` is an accepted alias (and vice-versa for the `json`/`compile` file output). Prefer `--outdir` in scripts.
 
 ## Analysis Commands
@@ -140,40 +140,38 @@ JSON is primarily for **inspection**. For durable value edits prefer a `SetPrope
 
 ### Choosing an Asset Modification Workflow
 
-Pick the **narrowest** tool. Whole-file `.kms` recompilation of complex blueprints is unsafe and is **not** the default.
+Pick the **narrowest** tool. `.kms` is now the primary editing surface for most logic and simple default-value changes.
 
-1. **Logic / bytecode change → surgical single-function patch.** `decompile` to `.kms`, edit only the target function, then `compile --only-func <Fn>` (see below). This replaces just that function's bytecode and restores every other function (including functions that failed to decompile) and all default properties byte-for-byte from the original asset.
-   - **Do NOT** recompile the whole `.kms` for large/inherited blueprints or large Ubergraphs. If decompilation reports errors like `Error decompiling function ... Sequence contains no matching element`, a full recompile will re-emit corrupted bytecode for those functions and crash at runtime with `undefined opcode`. Surgical `--only-func` avoids this.
-2. **Value / default-property / array change → Patching `SetProperty` (code recipe).** Use the `UAssetStudio.Patching` library's stable `load → modify in memory → write` path, expressed as a checked-in mod recipe and executed with `mods run`. `AssetPatchSession.Load` replays the binary read path, so Blueprint-generated and parent-class schemas are collected correctly for inherited UE5 blueprints.
-3. **JSON is for inspection, not as the primary edit path.** `json` export remains great for reading structure. JSON *import* is a fallback only; for inherited UE5 blueprints it loses parent-class schemas unless you pass `--asset <original.uasset>` (which replays the binary read path). Prefer a `SetProperty` recipe over the JSON round-trip for durable value edits.
+1. **Logic / bytecode change → KMS-first safe compile.** `decompile` to `.kms`, edit the target function(s), then run `compile edited.kms --asset original.uasset`. The CLI automatically detects changed functions and replaces only those bytecode blobs; unchanged and decompile-failed functions are preserved from the original asset.
+2. **Default value / scalar property change → edit `.kms` directly.** Class CDO and object subobject scalar defaults (`bool`, `int`, `int64`, `float`, `double`, `string`, `Name`, `Enum<...>`) are diffed and written back through the in-memory patch path. For struct/array/map or complex object edits, use a Patching/Mods recipe.
+3. **Whole-file compile is explicit and risky.** Use `--full` or `--unsafe-full` only for assets you know round-trip cleanly. Large/inherited blueprints or assets with `Error decompiling function ...` can crash at runtime if fully recompiled.
+4. **JSON is for inspection, not as the primary edit path.** JSON export remains useful for reading structure. JSON import is a fallback only; inherited UE5 blueprints need `--asset <original.uasset>` so schemas collected by binary loading are available.
 
-Both surgical bytecode patches and property edits are sediment-able as reproducible **mod recipes** (code + checked-in `.kms`) — see *Modification Commands* below.
+Stable `.kms` edits can still be sedimented into reproducible **mod recipes** (code + checked-in `.kms`) for batch builds and distribution.
 
 ### Modification Commands
 
-#### compile — `.kms` to asset (surgical by default for logic edits)
+#### compile — `.kms` to asset (KMS-first safe patch by default)
 
 ```bash
-# Surgical single-function patch (RECOMMENDED for logic/bytecode edits).
-# Replaces ONLY the named function(s); everything else preserved from --asset.
+# Default safe patch: auto-diff changed functions and scalar default properties.
 "$UAS_CLI" compile edited.kms \
   --asset original.uasset \
   --mappings <usmap> --ue-version VER_UE5_6 \
-  --only-func CanSwitchToCharacter \
   --out patched.uasset --json
 
-# --only-func is repeatable for multiple functions:
+# Optional manual function selection (skips auto function diff):
 "$UAS_CLI" compile edited.kms --asset original.uasset --only-func Foo --only-func Bar --out out.uasset
 
-# Full compile (only safe for small assets that fully round-trip; use `verify` first):
-"$UAS_CLI" compile script.kms --asset original.uasset --ue-version VER_UE4_27 --out out.uasset
+# Legacy whole-file compile (risky; use only after verify):
+"$UAS_CLI" compile script.kms --asset original.uasset --ue-version VER_UE4_27 --out out.uasset --full
 ```
 
-`--only-func` requires the original `--asset` and is incompatible with standalone metadata (`--meta`) compilation. JSON `Data` reports `{ "mode": "surgical", "patchedFunctions": ["..."] }`.
+Default JSON `Data` reports `Mode: "patch"`, `ChangedFunctions`, `ChangedProperties`, `PreservedFunctions`, and `Warnings`. `--only-func` still requires the original `--asset` and is incompatible with standalone metadata (`--meta`) compilation.
 
 #### mods — reproducible code-recipe mods
 
-Mods are checked-in C# recipes (`UAssetStudio.Mods/`) that pair a surgical patch or property edits with a versioned `.kms`. They are the durable, reviewable way to "codify" an asset change.
+Mods are checked-in C# recipes (`UAssetStudio.Mods/`) that pair safe KMS patch compile with versioned `.kms` files. They are the durable, reviewable way to codify and batch-run asset changes after the `.kms` edit is stable.
 
 ```bash
 # List available mods

@@ -18,6 +18,7 @@ namespace UAssetStudio.Cli.CMD
             var outdirOpt = new Option<string?>("--outdir", description: "Output directory; default = script directory");
             var outFileOpt = new Option<string?>("--out", description: "Output file path (overrides --outdir)");
             var metaOpt = new Option<string?>("--meta", description: "Path to .kms.meta metadata file for standalone compilation");
+            var fullOpt = new Option<bool>(new[] { "--full", "--unsafe-full" }, () => false, "Use the legacy whole-file recompile path. Risky for complex blueprints; safe KMS patch compile is the default when --asset is available.");
             var onlyFuncOpt = new Option<string[]>("--only-func", description: "Surgical patch: only replace bytecode of these function(s); restore everything else from the original asset. Repeatable.")
             {
                 AllowMultipleArgumentsPerToken = true,
@@ -30,6 +31,7 @@ namespace UAssetStudio.Cli.CMD
                 outdirOpt,
                 outFileOpt,
                 metaOpt,
+                fullOpt,
                 onlyFuncOpt,
             };
 
@@ -45,11 +47,12 @@ namespace UAssetStudio.Cli.CMD
                 var outdir = ctx.ParseResult.GetValueForOption(outdirOpt);
                 var outFile = ctx.ParseResult.GetValueForOption(outFileOpt);
                 var metaPath = ctx.ParseResult.GetValueForOption(metaOpt);
+                var fullCompile = ctx.ParseResult.GetValueForOption(fullOpt);
                 var onlyFuncs = ctx.ParseResult.GetValueForOption(onlyFuncOpt) ?? Array.Empty<string>();
                 var asJson = ctx.ParseResult.GetValueForOption(json);
 
                 ctx.ExitCode = CliOutput.Run("compile", asJson,
-                    new { script = scriptPath, asset = assetPath, mappings = mapPath, ueVersion = ver.ToString(), outdir, outFile, meta = metaPath, onlyFunc = onlyFuncs },
+                    new { script = scriptPath, asset = assetPath, mappings = mapPath, ueVersion = ver.ToString(), outdir, outFile, meta = metaPath, full = fullCompile, onlyFunc = onlyFuncs },
                     result =>
                     {
                         CliOutput.RequireFile(scriptPath, "Script file");
@@ -80,6 +83,27 @@ namespace UAssetStudio.Cli.CMD
                             result.Data = new { mode = "surgical", patchedFunctions = session.PatchedFunctions };
                             result.Line($"Surgically patched [{string.Join(", ", session.PatchedFunctions)}]: {scriptPath} -> {outputPath}");
                             result.Line("All other functions and default properties preserved byte-for-byte from the original.");
+                            return;
+                        }
+
+                        // New default: with an original asset, compile is a safe KMS patch.
+                        if (hasOriginalAsset && !fullCompile)
+                        {
+                            if (hasMetadata)
+                                result.Warn($"Ignoring metadata file for safe patch compile: {effectiveMetaPath}");
+
+                            var session = AssetPatchSession.Load(originalAssetPath, ver, mapPath);
+                            var report = session.ApplyKmsPatch(scriptPath);
+                            session.Save(outputPath);
+
+                            foreach (var warning in report.Warnings)
+                                result.Warn($"{warning.Type}: {warning.Message}{(warning.Path != null ? $" ({warning.Path})" : "")}");
+
+                            result.AddOutput(outputPath);
+                            result.Data = report;
+                            result.Line($"Safely patched KMS: {scriptPath} -> {outputPath}");
+                            result.Line($"Changed functions: {string.Join(", ", report.ChangedFunctions.Select(f => f.Name))}");
+                            result.Line($"Changed properties: {string.Join(", ", report.ChangedProperties.Select(p => p.Path))}");
                             return;
                         }
 

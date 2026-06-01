@@ -170,6 +170,36 @@ namespace UAssetStudio.Patching
             return this;
         }
 
+        /// <summary>
+        /// Applies an edited KMS as a safe patch against this asset. The original asset is first
+        /// decompiled to a baseline KMS, then only changed functions and scalar default properties
+        /// are written back. High-risk operations such as adding/removing functions fail fast and
+        /// should use an explicit full compile mode instead.
+        /// </summary>
+        public KmsPatchReport ApplyKmsPatch(string editedKmsPath)
+        {
+            var plan = KmsDiff.CreatePlan(Asset, editedKmsPath);
+            var report = plan.Report;
+
+            if (report.NewFunctions.Count > 0)
+                throw new InvalidOperationException(
+                    $"Safe KMS patch cannot add functions: {string.Join(", ", report.NewFunctions)}. Use --full if this is intentional.");
+            if (report.RemovedFunctions.Count > 0)
+                throw new InvalidOperationException(
+                    $"Safe KMS patch cannot remove functions: {string.Join(", ", report.RemovedFunctions)}. Use --full if this is intentional.");
+
+            var changedFunctions = report.ChangedFunctions.Select(f => f.Name).ToArray();
+            if (changedFunctions.Length > 0)
+                ReplaceFunctionBytecode(editedKmsPath, changedFunctions);
+
+            // Apply property edits after function linking, because the function patcher restores
+            // NormalExport.Data to protect defaults from whole-file link side effects.
+            foreach (var property in report.ChangedProperties)
+                SetProperty(property.ExportName, property.PropertyPath, property.ParsedValue!);
+
+            return report;
+        }
+
         /// <summary>Writes the patched asset (and its .uexp) to outPath.</summary>
         public void Save(string outPath)
         {

@@ -120,7 +120,7 @@ Agent 使用建议：
 
 - 对可解析的命令总是传 `--json`，按 `Status` 或退出码分支，不解析人类文本。
 - 使用 `Outputs` 读取实际生成文件，不要猜测路径。
-- 读取 `Data` 获取命令特定结果，例如 `compile --only-func` 的 `patchedFunctions`、`validate` 的 `errors/warnings`、`verify` 的 `verified`。
+- 读取 `Data` 获取命令特定结果，例如默认 `compile` 的 `Mode/ChangedFunctions/ChangedProperties`、`validate` 的 `errors/warnings`、`verify` 的 `verified`。
 
 ## CLI 命令
 
@@ -197,11 +197,11 @@ dotnet run --project UAssetStudio.Cli -- decompile \
 
 ### `compile`
 
-用途：把 `.kms` 编译回 `.uasset`。此命令有三种模式：完整编译、standalone metadata 编译、单函数外科补丁。
+用途：把编辑后的 `.kms` 安全写回 `.uasset`。当提供 `--asset` 且未传 `--full/--unsafe-full` 时，默认是 **KMS-first safe patch compile**：自动对比原资产反编译出的 baseline KMS 与 edited KMS，只写回变更函数和支持的标量默认属性，未变内容从原资产保留。
 
-#### 完整编译
+#### 默认安全 patch 编译
 
-完整编译会根据原始资产或 metadata 创建新资产。对复杂继承 Blueprint 不建议作为默认修改路径。
+推荐主路径：逻辑和简单数值都直接改 `.kms`，然后 compile。
 
 ```bash
 dotnet run --project UAssetStudio.Cli -- compile <script.kms> \
@@ -217,8 +217,30 @@ dotnet run --project UAssetStudio.Cli -- compile <script.kms> \
 JSON `Data`：
 
 ```json
-{ "mode": "full" }
+{
+  "Mode": "patch",
+  "ChangedFunctions": [{ "Name": "CanSwitchToCharacter" }],
+  "ChangedProperties": [
+    {
+      "ExportName": "Default__WPN_LockOnRifle_C",
+      "PropertyPath": "ShotsPerTarget",
+      "PropertyType": "int",
+      "OldValue": "1",
+      "NewValue": "1337",
+      "Path": "Default__WPN_LockOnRifle_C.ShotsPerTarget"
+    }
+  ],
+  "Warnings": []
+}
 ```
+
+当前 safe patch 支持：
+
+- 函数体变更：自动识别并只替换变更函数 bytecode。
+- class CDO / object 子对象中的标量默认属性：`bool`、`int`、`int64`、`float`、`double`、`string`、`Name`、`Enum<...>`。
+- 新增/删除函数会失败并提示使用 `--full`。
+- 新增/删除属性会出现在 warning 中，不会静默创建或删除。
+- struct/array/map 等复杂属性首期不静默处理；需要 C# Recipe 或后续增强。
 
 #### Standalone metadata 编译
 
@@ -244,9 +266,29 @@ dotnet run --project UAssetStudio.Cli -- compile ./work/Asset.kms \
 
 如果 `script.kms.meta` 存在且找不到原始资产，CLI 会自动使用 metadata 路径。
 
+#### `--full` / `--unsafe-full` 整文件重编译
+
+显式启用旧的整文件 `LinkCompiledScript` 路径。这个模式会尝试重链 `.kms` 中的所有函数和结构，可能破坏复杂 Blueprint 中无关函数字节码；只建议用于已经 `verify` 证明可完整 round-trip 的资产。
+
+```bash
+dotnet run --project UAssetStudio.Cli -- compile <script.kms> \
+  --asset <original.uasset> \
+  --ue-version VER_UE5_6 \
+  --mappings <mappings.usmap> \
+  --out <patched.uasset> \
+  --full \
+  --json
+```
+
+`--unsafe-full` 是 `--full` 的别名，用于脚本里显式标注风险。JSON `Data` 为：
+
+```json
+{ "mode": "full" }
+```
+
 #### `--only-func` 外科补丁
 
-推荐用于逻辑/字节码修改。它会编译 `.kms`，但只替换指定函数的字节码；其他函数和默认属性从原始资产恢复，避免整文件重编译破坏无关函数。
+手动指定目标函数，跳过自动 diff。适合你已经明确知道只想替换哪些函数的场景。
 
 ```bash
 dotnet run --project UAssetStudio.Cli -- compile <edited.kms> \
@@ -460,9 +502,9 @@ JSON `Data` 包含：
 ### 逻辑或字节码改动
 
 1. 使用 `decompile` 生成 `.kms`。
-2. 只编辑目标函数。
-3. 使用 `compile --only-func <Name>` 对原始资产做外科补丁。
-4. 修改稳定后，将 `.kms` 和调用逻辑沉淀为 `UAssetStudio.Mods` 下的 C# Recipe。
+2. 编辑目标函数。
+3. 直接执行 `compile edited.kms --asset original.uasset`。默认 safe patch 会自动识别变更函数，只替换这些函数的 bytecode。
+4. 修改稳定后，可将 `.kms` 和调用逻辑沉淀为 `UAssetStudio.Mods` 下的 C# Recipe，便于批量构建和分发。
 
 示例：
 
@@ -473,14 +515,24 @@ dotnet run --project UAssetStudio.Cli -- decompile original.uasset \
 dotnet run --project UAssetStudio.Cli -- compile ./work/original.kms \
   --asset original.uasset \
   --ue-version VER_UE5_6 --mappings mappings.usmap \
-  --only-func TargetFunction \
   --out patched.uasset \
   --json
 ```
 
 ### 数值、默认属性或数组改动
 
-使用 `UAssetStudio.Patching` 的内存内修改路径，或者写成 `mods run` Recipe。核心 API：
+优先在 `.kms` 里直接改 class CDO 或 object 子对象的默认属性，然后执行默认 `compile --asset`。当前 KMS-first safe patch 已支持常见标量默认属性；复杂 struct/array/map 可继续使用 `UAssetStudio.Patching` 的内存内修改路径，或者写成 `mods run` Recipe。
+
+KMS 示例：
+
+```kms
+class WPN_LockOnRifle_C : LockOnWeapon {
+    int ShotsPerTarget = 1337;
+    float LockOnTime = 0.05f;
+}
+```
+
+复杂属性的 C# API：
 
 ```csharp
 AssetPatchSession
@@ -489,19 +541,19 @@ AssetPatchSession
     .Save(outputPath);
 ```
 
-复杂编辑可以直接使用 `AssetPatchSession.Asset` 暴露的 UAssetAPI 对象模型；简单叶子属性可用 `SetProperty`，支持 `float/double/int/int64/bool/byte/string/name/enum` 等常见类型。
+复杂编辑可以直接使用 `AssetPatchSession.Asset` 暴露的 UAssetAPI 对象模型；简单叶子属性可用 `SetProperty`，支持 `float/double/int/int64/bool/byte/string/name/enum` 等常见类型。Recipe 现在更适合批量编排和复现分发，而不是简单数值修改的唯一主路径。
 
 ### JSON 的定位
 
-JSON 适合检视结构、定位属性路径和做小范围实验。复杂 UE5 继承 Blueprint 的主要编辑路径应使用 Patching/Mods 的 `load -> modify in memory -> write`，因为二进制读取路径会收集 Blueprint 与父类 schema。JSON import 作为兜底路径时请传 `--asset <original.uasset>`。
+JSON 适合检视结构、定位属性路径和做小范围实验。复杂 UE5 继承 Blueprint 的主要编辑路径应使用 KMS-first safe compile 或 Patching/Mods 的 `load -> modify in memory -> write`，因为二进制读取路径会收集 Blueprint 与父类 schema。JSON import 作为兜底路径时请传 `--asset <original.uasset>`。
 
 ## 重要注意
 
-- **复杂 Blueprint 避免整文件 KMS 重编译**：大型 Ubergraph、继承蓝图或反编译有报错的资产，整文件重编译可能破坏无关函数字节码。优先使用 `compile --only-func`。
-- **外科补丁保护未修改函数**：`ReplaceFunctionBytecode` 会恢复非目标函数的原始 bytecode/raw bytecode，并恢复默认属性，适合只改一个或少数函数。
+- **复杂 Blueprint 避免整文件 KMS 重编译**：大型 Ubergraph、继承蓝图或反编译有报错的资产，整文件重编译可能破坏无关函数字节码。默认 `compile --asset` 已走 safe patch；只有显式 `--full/--unsafe-full` 才启用旧整编。
+- **safe patch 保护未修改内容**：KMS-first safe compile 会自动识别变更函数与支持的标量属性，未修改函数、反编译失败函数和未变默认属性会从原资产保留。
 - **UE5 需要 usmap**：UE5+ 的 unversioned properties 通常必须提供 `.usmap`。缺失 mappings 可能导致属性解析、JSON import 或写回失败。
 - **二进制等价性很重要**：用于 modding 的资产应尽量保持未修改部分二进制等价。改动序列化或链接逻辑后，应使用 `verify`、相关测试和必要的二进制对比确认行为。
-- **JSON import 不是默认编辑方案**：尤其是继承 Blueprint，缺父类 schema 时容易失败或丢失上下文。默认属性修改请优先使用 `SetProperty` 或 mod recipe。
+- **JSON import 不是默认编辑方案**：尤其是继承 Blueprint，缺父类 schema 时容易失败或丢失上下文。默认属性修改请优先编辑 `.kms` 并使用 safe compile；复杂属性再使用 `SetProperty` 或 mod recipe。
 
 ## 测试脚本
 

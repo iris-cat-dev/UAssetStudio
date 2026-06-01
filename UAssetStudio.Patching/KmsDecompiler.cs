@@ -9,6 +9,14 @@ namespace UAssetStudio.Patching
     /// </summary>
     public static class KmsDecompiler
     {
+        public static string DecompileToString(UAsset asset)
+        {
+            using var writer = new StringWriter();
+            var decompiler = new KismetDecompiler(writer);
+            decompiler.Decompile(asset);
+            return writer.ToString();
+        }
+
         public static void DecompileToFile(UAsset asset, string outPath)
         {
             using var writer = new StreamWriter(outPath, false, new UTF8Encoding(false));
