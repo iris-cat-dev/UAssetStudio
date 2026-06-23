@@ -172,9 +172,111 @@ public class CompilationUnitWriter
             WriteCloseBracket();
         }
 
+        public override void Visit(BlueprintDeclaration node)
+        {
+            WriteWithSeperator("blueprint");
+            Write(node.Identifier.Text);
+            if (node.BaseClassIdentifier != null)
+            {
+                Write(" : ");
+                Visit(node.BaseClassIdentifier);
+            }
+            WriteWithSeperator("at");
+            Visit(node.PackagePath);
+            WriteNewLine();
+            WriteOpenBracket();
+            IncreaseIndentation();
+            foreach (var item in node.Declarations)
+            {
+                Visit(item);
+            }
+            DecreaseIndentation();
+            WriteCloseBracket();
+        }
+
+        public override void Visit(ComponentDeclaration node)
+        {
+            WriteDecorators(node.Decorators);
+            WriteIndentation();
+            WriteWithSeperator("component");
+            Visit(node.Identifier);
+            Write(": ");
+            Write(node.ClassIdentifier.Text);
+
+            if (node.ComponentProperties.Count == 0)
+            {
+                WriteStatementEnd();
+                return;
+            }
+
+            WriteNewLine();
+            WriteOpenBracket();
+            IncreaseIndentation();
+            foreach (var property in node.ComponentProperties)
+            {
+                Visit(property);
+            }
+            DecreaseIndentation();
+            WriteCloseBracket();
+        }
+
+        public override void Visit(ComponentPropertyAssignment node)
+        {
+            WriteIndentation();
+            Visit(node.Name);
+            if (node.Type != null)
+            {
+                Write(": ");
+                Visit(node.Type);
+            }
+            Write(" = ");
+            Visit(node.Value);
+            WriteStatementEnd();
+        }
+
         public override void Visit(ProcedureDeclaration procedureDeclaration)
         {
             mProcedure = procedureDeclaration;
+
+            if (procedureDeclaration.IsBlueprintStyle)
+            {
+                WriteDecorators(procedureDeclaration.Decorators);
+                WriteIndentation();
+                switch (procedureDeclaration.BlueprintKind)
+                {
+                    case BlueprintProcedureKind.Event:
+                        WriteWithSeperator("event");
+                        Visit(procedureDeclaration.Identifier);
+                        WriteBpParameters(procedureDeclaration.Parameters);
+                        break;
+                    case BlueprintProcedureKind.Callable:
+                        WriteWithSeperator("callable");
+                        Visit(procedureDeclaration.ReturnType);
+                        Write(" ");
+                        Visit(procedureDeclaration.Identifier);
+                        WriteBpParameters(procedureDeclaration.Parameters);
+                        break;
+                    case BlueprintProcedureKind.Pure:
+                        WriteWithSeperator("pure");
+                        Visit(procedureDeclaration.ReturnType);
+                        Write(" ");
+                        Visit(procedureDeclaration.Identifier);
+                        WriteBpParameters(procedureDeclaration.Parameters);
+                        break;
+                    default:
+                        Visit(procedureDeclaration.ReturnType);
+                        Write(" ");
+                        Visit(procedureDeclaration.Identifier);
+                        WriteBpParameters(procedureDeclaration.Parameters);
+                        break;
+                }
+
+                if (procedureDeclaration.Body == null)
+                    WriteStatementEnd();
+                else
+                    Visit(procedureDeclaration.Body);
+                return;
+            }
 
             WriteIndentation();
             if (procedureDeclaration.Modifiers.HasFlag(ProcedureModifier.Public))
@@ -216,6 +318,24 @@ public class CompilationUnitWriter
 
         public override void Visit(VariableDeclaration variableDeclaration)
         {
+            if (variableDeclaration.IsBlueprintStyle)
+            {
+                WriteDecorators(variableDeclaration.Decorators);
+                WriteIndentation();
+                WriteWithSeperator("var");
+                Visit(variableDeclaration.Identifier);
+                Write(": ");
+                Visit(variableDeclaration.Type);
+
+                if (variableDeclaration.Initializer != null)
+                {
+                    Write(" = ");
+                    Visit(variableDeclaration.Initializer);
+                }
+                WriteStatementEnd();
+                return;
+            }
+
             WriteIndentation();
             if (variableDeclaration.Modifiers.HasFlag(VariableModifier.Public))
                 WriteWithSeperator("public");
@@ -442,6 +562,17 @@ public class CompilationUnitWriter
         public override void Visit(CallOperator callOperator)
         {
             Write(callOperator.Identifier.Text);
+            if (callOperator.TypeArguments.Count > 0)
+            {
+                Write("<");
+                for (int i = 0; i < callOperator.TypeArguments.Count; i++)
+                {
+                    Visit(callOperator.TypeArguments[i]);
+                    if (i != callOperator.TypeArguments.Count - 1)
+                        Write(", ");
+                }
+                Write(">");
+            }
 
             if (callOperator.Arguments.Count == 0)
             {
@@ -749,6 +880,54 @@ public class CompilationUnitWriter
                         Write(", ");
                 }
                 WriteCloseParenthesis();
+            }
+        }
+
+        private void WriteBpParameters(List<Parameter> parameters)
+        {
+            if (parameters.Count == 0)
+            {
+                Write("()");
+            }
+            else
+            {
+                WriteOpenParenthesis();
+                for (int i = 0; i < parameters.Count; i++)
+                {
+                    var parameter = parameters[i];
+                    if (parameter.Modifier.HasFlag(ParameterModifier.Out))
+                        WriteWithSeperator("out");
+                    if (parameter.Modifier.HasFlag(ParameterModifier.Ref))
+                        WriteWithSeperator("ref");
+                    Write(parameter.Identifier.Text);
+                    Write(": ");
+                    Write(parameter.Type.Text);
+                    if (i != parameters.Count - 1)
+                        Write(", ");
+                }
+                WriteCloseParenthesis();
+            }
+        }
+
+        private void WriteDecorators(List<DecoratorDeclaration> decorators)
+        {
+            foreach (var decorator in decorators)
+            {
+                WriteIndentation();
+                Write("@");
+                Write(decorator.Identifier.Text);
+                if (decorator.Arguments.Count > 0)
+                {
+                    WriteOpenParenthesis();
+                    for (int i = 0; i < decorator.Arguments.Count; i++)
+                    {
+                        Visit(decorator.Arguments[i]);
+                        if (i != decorator.Arguments.Count - 1)
+                            Write(", ");
+                    }
+                    WriteCloseParenthesis();
+                }
+                WriteNewLine();
             }
         }
 

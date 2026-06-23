@@ -15,6 +15,8 @@ public class VariableDeclaration : Declaration
 
     public virtual bool IsArray => false;
 
+    public bool IsBlueprintStyle { get; set; }
+
     public VariableDeclaration() : base(DeclarationType.Variable) { }
 
     public VariableDeclaration(VariableModifier modifier, TypeIdentifier type, Identifier identifier, Expression initializer)

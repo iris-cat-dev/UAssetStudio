@@ -7,6 +7,8 @@ public abstract class Declaration : Statement
 {
     public List<AttributeDeclaration> Attributes { get; set; } = new();
 
+    public List<DecoratorDeclaration> Decorators { get; set; } = new();
+
     public DeclarationType DeclarationType { get; }
 
     public Identifier Identifier { get; set; } = null!;

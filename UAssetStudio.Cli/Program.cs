@@ -22,6 +22,7 @@ internal static class Program
         root.Add(DecompileCommandBuilder.Create(ueVersion, mappings, json));
         root.Add(CompileCommandBuilder.Create(ueVersion, mappings, json));
         root.Add(JsonCommandBuilder.Create(ueVersion, mappings, json));
+        root.Add(KmsBpCommandBuilder.Create(json));
         root.Add(VerifyCommandBuilder.Create(ueVersion, mappings, json));
         root.Add(ValidateCommand.Create(ueVersion, mappings, json));
         root.Add(ModsCommandBuilder.Create(ueVersion, mappings, json));

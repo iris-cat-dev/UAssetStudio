@@ -223,7 +223,7 @@ SecondariesWithAttributes/
 
 **主武器（Primaries）：**
 
-AssaultRifle, BattleRifle, CombatShotgun, ElectricSMG, M1000, Machinepistol, MagBlaster, PlasmaCarbine, Slugger, TwohandedSMG, FlameThrower, GooCannon, Cryospray
+AssaultRifle, BattleRifle, CombatShotgun, ElectricSMG, M1000, Machinepistol, MagBlaster, PlasmaCarbine, Slugger, TwohandedSMG, FlameThrower, GooCannon, Cryospray, HeavyParticleCannon, Crossbow, CoilGun
 
 **起始 / Ambient 变体：**
 
@@ -234,6 +234,9 @@ ChargeBlaster, ShockBlaster, AmbientFieldBlaster, Devastator_NEW
 - `Unlock_Item_FlameThrower` → `ID_FlameThrower_BXE`
 - `Unlock_Item_GooCannon` → `ID_GooCannon_BXE`
 - `Unlock_Item_Cryospray` → `ID_Cryospray_BXE`
+- `Unlock_Item_HeavyParticleCannon` → `ID_HeavyParticleCannon_BXE`
+- `Unlock_Item_Crossbow` → `ID_Crossbow_BXE`
+- `Unlock_Item_CoilGun` → `ID_CoilGun_BXE`
 
 ## Support Tool（辅助工具，非副武器）
 

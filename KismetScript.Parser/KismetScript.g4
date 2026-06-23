@@ -15,6 +15,7 @@ statement
 	: nullStatement
 	| compoundStatement
 	| declarationStatement
+	| bpVariableDeclarationStatement
 	| expression Semicolon
 	| ifStatement
 	| forStatement
@@ -39,12 +40,39 @@ compoundStatement
 //
 declarationStatement
 	: packageImportStatement
+	| blueprintDeclarationStatement
 	| procedureDeclarationStatement
 	| variableDeclarationStatement
 	| enumTypeDeclarationStatement
 	| labelDeclarationStatement
 	| classDeclarationStatement
 	| objectDeclarationStatement
+	;
+
+blueprintDeclarationStatement
+	: Blueprint Identifier ':' typeIdentifier At StringLiteral '{' blueprintMemberStatement* '}'
+	;
+
+blueprintMemberStatement
+	: componentDeclarationStatement
+	| bpProcedureDeclarationStatement
+	| bpVariableDeclarationStatement
+	| procedureDeclarationStatement
+	| variableDeclarationStatement
+	| enumTypeDeclarationStatement
+	| objectDeclarationStatement
+	;
+
+decorator
+	: '@' Identifier argumentList?
+	;
+
+componentDeclarationStatement
+	: decorator* Component Identifier ':' typeIdentifier (Semicolon | '{' componentPropertyAssignment* '}')
+	;
+
+componentPropertyAssignment
+	: Identifier (':' typeIdentifier)? '=' expression ';'
 	;
 
 packageImportStatement
@@ -74,8 +102,18 @@ procedureDeclarationStatement
 	| attributeList* modifier* typeIdentifier Identifier parameterList Semicolon
 	;
 
+bpProcedureDeclarationStatement
+	: decorator* Event Identifier parameterList compoundStatement
+	| decorator* Callable typeIdentifier Identifier parameterList compoundStatement
+	| decorator* Pure typeIdentifier Identifier parameterList compoundStatement
+	;
+
 variableDeclarationStatement
 	: attributeList* modifier* typeIdentifier Identifier ('=' expression)? Semicolon
+	;
+
+bpVariableDeclarationStatement
+	: decorator* Var Identifier ':' typeIdentifier ('=' expression)? Semicolon
 	;
 
 arraySignifier
@@ -95,7 +133,7 @@ enumValueList
 	;
 
 attributeDeclaration
-	: Identifier argumentList?
+	: Identifier (argumentList | '=' expression)?
 	;
 
 attributeList
@@ -130,6 +168,7 @@ parameterList
 
 parameter
 	: attributeList? modifier* typeIdentifier Identifier arraySignifier?
+	| attributeList? modifier* Identifier ':' typeIdentifier arraySignifier?
 	| Elipsis
 	;
 
@@ -138,6 +177,10 @@ parameter
 //
 argumentList
 	: '(' argument? (',' argument)* ')'
+	;
+
+typeArgumentList
+	: '<' typeIdentifier (',' typeIdentifier)* '>'
 	;
 
 argument
@@ -159,7 +202,7 @@ expression
 	| expression Op=('.'|'->') expression									# memberExpression
 	| '(' typeIdentifier ')' expression										# castExpression				// precedence 2
 	| Typeof '(' typeIdentifier ')'											# typeofExpression				// precedence 2
-	| Identifier argumentList												# callExpression				// precedence 2
+	| Identifier typeArgumentList? argumentList								# callExpression				// precedence 2
 	| expression Op=( '--' | '++' )											# unaryPostfixExpression		// precedence 2
 	| Op=( '!' | '-' | '--' | '++' ) expression								# unaryPrefixExpression			// precedence 3
 	| expression Op=( '*' | '/' | '%' ) expression							# multiplicationExpression		// precedence 5
@@ -267,6 +310,7 @@ Typeof:		'typeof';
 New:		'new';
 Namespace:	'namespace';
 Using:		'using';
+At:			'at';
 
 //	Storage types
 Function:	'function';
@@ -280,6 +324,12 @@ Struct:		'struct';
 Interface:	'interface';
 Ref:		'ref';
 Object:		'object';
+Blueprint:	'blueprint';
+Component:	'component';
+Event:		'event';
+Var:		'var';
+Callable:	'callable';
+Pure:		'pure';
 
 // Modifiers
 Public:		'public';

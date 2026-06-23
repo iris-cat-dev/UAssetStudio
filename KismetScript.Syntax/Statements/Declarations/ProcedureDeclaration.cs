@@ -16,6 +16,14 @@ public enum ProcedureModifier
     Override = 1 << 6,
 }
 
+public enum BlueprintProcedureKind
+{
+    Ordinary,
+    Event,
+    Callable,
+    Pure
+}
+
 public class ProcedureDeclaration : Declaration, IBlockStatement
 {
     public ProcedureModifier Modifiers { get; set; } = 0;
@@ -37,6 +45,10 @@ public class ProcedureDeclaration : Declaration, IBlockStatement
     public List<Parameter> Parameters { get; set; }
 
     public CompoundStatement? Body { get; set; }
+
+    public BlueprintProcedureKind BlueprintKind { get; set; } = BlueprintProcedureKind.Ordinary;
+
+    public bool IsBlueprintStyle { get; set; }
 
     IEnumerable<CompoundStatement> IBlockStatement.Blocks => new[] { Body }.Where(x => x != null);
 

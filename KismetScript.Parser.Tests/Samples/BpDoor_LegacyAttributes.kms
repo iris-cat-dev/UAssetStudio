@@ -1,0 +1,19 @@
+[Blueprint(Path = "/Game/Generated/BP_Door_Gen")]
+class BP_Door : Actor {
+    [RootComponent]
+    object Root : SceneComponent {
+    }
+
+    [Component, Attach = Root]
+    object Mesh : StaticMeshComponent {
+        Object<StaticMesh> StaticMesh = asset<StaticMesh>("/Game/Props/SM_Door.SM_Door");
+    }
+
+    [Edit, Category("Door")]
+    float OpenAngle = 90.0f;
+
+    [Event("BeginPlay")]
+    void ReceiveBeginPlay() {
+        print("Door ready");
+    }
+}

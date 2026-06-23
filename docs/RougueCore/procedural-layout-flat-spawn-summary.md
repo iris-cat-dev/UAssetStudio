@@ -172,6 +172,138 @@ Array<Object<RoomGenerator>> ExtractionRooms = [
 - `RMA_Big01` ~ `RMA_Big06`
 - `RMA_BXE_Large_A` ~ `RMA_BXE_Large_F`
 
+## 后续迭代：CoreHole、装饰设施与房间白名单
+
+第三版后，游戏中仍然能看到地下室，并且物品仍可能生成在地下室内部。后续排查确认：剩余来源已经不主要是 `CGA_Default` 的大型 Construction、隧道装饰或 `Motherlode_Center`，而是更隐蔽的洞口装饰、房间式小设施，以及保留房间模板自身的 flood-fill/carve 几何。
+
+### 第四版：移除 `CoreHole` 洞口装饰
+
+`PLS_RC_Base` 的 `LevelDecorationComponent` 里仍保留：
+
+```kms
+Array<Struct> DirtDecoration = [
+    { DirtDecoration: "BP_DirtDecoration_CoreHole_C", SpawnWeight: 1.0f }
+];
+```
+
+该资产名称和表现都更接近地下洞口来源，因此第四版将其权重改为 `0.0f`。
+
+验证结果：
+
+```text
+DirtDecoration: total=1, zero=1
+ForcedFirstTunnelDecorations: total=5, zero=5
+TunnelDecorations: total=21, zero=21
+VERIFY_OK
+```
+
+### 第五版：清空剩余房间式 Construction
+
+继续反馈地下室后，审计当前 `CGA_Default` 发现仍有一批非零 Construction，虽然不再是明显脚手架，但可能自带内部空间或让物品落入封闭/下层区域：
+
+| 资产 | 原权重 |
+|------|--------|
+| `BP_Construction_Cave_Fridge_C` | `0.5` |
+| `BP_Construction_Cave_Hydroponics_C` | `0.5` |
+| `BP_Constuction_Cave_Furnace_C` | `0.5` |
+| `BP_Construction_Cave_FoodCourt_C` | `1.0` |
+| `BP_Construction_Cave_Hut_C` | `0.75` |
+| `BP_Construction_Cave_Dotty_C` | `0.4` |
+
+同时，装饰性架子/墙管也被清零：
+
+- `BP_Construction_Cave_ToolRack_C`
+- `BP_Construction_Cave_PickaxeRack_C`
+- `BP_Construction_Cave_ConstructionRack_C`
+- `BP_Construction_Cave_wallPipe_A_C`
+- `BP_Construction_Cave_wallPipe_B_C`
+
+第五版后 `CGA_Default` 的 `Constructions` 数组所有条目的 `SpawnWeight` 均为 0：
+
+```text
+CGA Constructions: total=77, nonzero=0
+```
+
+### 第六版：极限排除法，只保留 `RMA_BXE_MediumFlat_1`
+
+为了确认地下室是否来自剩余房间模板，曾做过一版极端测试，将 `RMG_BXE` 和 `RMG_ExtractionLinear` 都压缩到只剩：
+
+```text
+RMA_BXE_MediumFlat_1
+```
+
+验证结果：
+
+```text
+RMG_BXE: ['RMA_BXE_MediumFlat_1']
+RMG_ExtractionLinear: ['RMA_BXE_MediumFlat_1']
+CGA Constructions total=77, nonzero=0
+VERIFY_OK
+```
+
+这版能最大限度排除复杂房间模板，但实际不可用：房间池太小，会显著降低程序化生成多样性，并可能导致地图生成重复或失败。因此它只作为排查实验，不作为推荐输出。
+
+### 第七版：中等规模房间白名单
+
+最终采用中等白名单方案：保留一批名字更偏平面、线性或必要连接的房间，同时继续排除高风险模板。
+
+`RMG_BXE` 当前保留 4 个房间：
+
+```text
+RMA_2PTwoWindowsSPAWNER_BXE
+RMA_RookieRandom_MediumA_BXE
+RMA_BXE_NewLinearX_End01
+RMA_BXE_MediumFlat_1
+```
+
+`RMG_ExtractionLinear` 当前保留 14 个房间：
+
+```text
+RMA_RookieRandom_MediumA_BXE
+RMA_TinyFacingEdges
+RMA_2PTwoWindowsSPAWNER_BXE
+RMA_BXE_NewLinearX_End01
+RMA_NewLinearX_End02
+RMA_NewLinearY_Start01
+RMA_NewLinearY_Start02
+RMA_NewLinearY_Start03
+RMA_NewLinearY_Start04
+RMA_NewLinearY_Start05
+RMA_BXE_MediumFlat_1
+RMA_RookieRandom_StartB
+RMA_S03_End_Medium
+RMA_S03_End_Medium_02
+```
+
+继续排除的高风险房间包括：
+
+- `Big*`
+- `RMA_BXE_Large_*`
+- `MediumB`
+- `MediumCenter`
+- `MU2_Medium*`
+- `Escort*`
+- `TimsRCRoom_Simple_*`
+- `Alcoves`
+- `Cannons`
+- `EndA` ~ `EndI`
+- `Vertical`
+- `Bridge`
+- `Platform`
+- `Ramp` / `Slope`
+- `Shaft`
+- `Cave`
+- `Hole`
+
+第七版验证：
+
+```text
+RMG_BXE rooms=4
+RMG_ExtractionLinear rooms=14
+CGA Constructions total=77, nonzero=0
+VERIFY_OK
+```
+
 ## 输出资产
 
 最终输出目录为：
@@ -195,7 +327,7 @@ Array<Object<RoomGenerator>> ExtractionRooms = [
 | `GameElements/Objectives/Generic/BXE_GenericOBJ_Positioning.uasset/.uexp` | 降低目标物放置坡度 |
 | `GameElements/RewardGivers/Vanity/BP_VanityChest_Positioning.uasset/.uexp` | 降低 Vanity Chest 放置坡度 |
 
-替换游戏资产时建议覆盖整个 `output/Content`，不要只替换部分文件。后续版本之间有依赖关系，尤其是 `PLS_RC_Random` / `PLS_RC_Gauntlet` 是第三版新增的关键修复。
+替换游戏资产时建议覆盖整个 `output/Content`，不要只替换部分文件。后续版本之间有依赖关系，尤其是 `CGA_Default`、`PLS_RC_Base`、`PLS_RC_Random`、`PLS_RC_Gauntlet`、`RMG_BXE` 和 `RMG_ExtractionLinear` 都是关键修复。
 
 ## 实现方式
 
@@ -242,9 +374,9 @@ analysis/roguecore_spawn/PatchPlsTool/
 ```text
 ForcedFirstTunnelDecorations: total=5, nonzero=0
 TunnelDecorations: total=21, nonzero=0
-CGA structural targets=66, nonzero=0
-RMG_ExtractionLinear.Rooms: total=59, bad=0
-RMG_BXE.Rooms: total=9, bad=0
+CGA Constructions total=77, nonzero=0
+RMG_ExtractionLinear.Rooms: total=14
+RMG_BXE.Rooms: total=4
 VERIFY_OK
 ```
 
@@ -255,18 +387,20 @@ VERIFY_OK
 - 这是一组激进裁剪，可能显著降低地图垂直复杂度和房间多样性。
 - 某些任务如果依赖特定大房间或 extraction room，可能出现路径生成、目标点或撤离房间重复度增加的问题。
 - `ExtractionRooms` 被替换为 fallback 房间后，撤离阶段的空间表现可能更简单。
-- 如果游戏运行时仍能看到地下室，剩余来源大概率是具体 `RMA_*` 房间模板内部的 baked geometry，而不是房间组或 PLS 数组。
+- v6 只保留 `RMA_BXE_MediumFlat_1` 的极端方案不可用，会导致房间池过小；当前推荐使用 v7 中等白名单。
+- 如果 v7 后仍能看到地下室，剩余来源大概率是保留白名单中的具体 `RMA_*` 房间模板内部 flood-fill/carve 几何，或者 `PLS_RC_Base` 的起始房间链路，而不是 Construction 权重。
 
 ## 后续排查方向
 
-如果 v3 后仍能看到地下室或复杂下层结构，建议继续做两件事：
+如果 v7 后仍能看到地下室或复杂下层结构，建议继续做两件事：
 
 1. 记录出现问题的关卡模式、阶段、房间外观截图，并反查对应 `RMA_*` 房间模板。
-2. 进一步禁用或替换仍保留的可疑模板，例如：
-   - `RMA_Medium*`
-   - `RMA_MediumCenter*`
-   - `RMA_TimsRCRoom_Simple_*`
-   - `RMA_Escort*`
-   - `RMA_MU2_Medium*`
+2. 优先在 v7 白名单中逐个排除可疑房间，而不是再次使用 v6 单房间方案。建议排查顺序：
+   - `RMA_S03_End_Medium`
+   - `RMA_S03_End_Medium_02`
+   - `RMA_RookieRandom_MediumA_BXE`
+   - `RMA_2PTwoWindowsSPAWNER_BXE`
+   - `RMA_NewLinearY_Start01` ~ `RMA_NewLinearY_Start05`
+   - `RMA_BXE_NewLinearX_End01` / `RMA_NewLinearX_End02`
 
-这些模板目前保留是为了避免房间池过小导致程序化生成失败；如果要继续“极平面化”，可以再做一版更严格的房间白名单。
+如果要继续极平面化，应改为更细粒度地 patch 具体 `RMA_*` 内部的 `FloodFillLine` / `FloodFillPillar` 参数，而不是无限缩小房间组。

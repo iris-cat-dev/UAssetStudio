@@ -16,7 +16,7 @@
 
   <!-- Mod content (edited .kms files) ships next to the assembly so recipes can resolve them at runtime. -->
   <ItemGroup>
-    <None Include="**\*.kms">
+    <None Include="**\*.kms" Exclude="bin\**;obj\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

@@ -13,7 +13,11 @@ namespace KismetScript.Syntax.Statements.Declarations
 
     public class ClassDeclaration : Declaration
     {
-        public ClassDeclaration() : base(DeclarationType.Class)
+        public ClassDeclaration() : this(DeclarationType.Class)
+        {
+        }
+
+        protected ClassDeclaration(DeclarationType type) : base(type)
         {
         }
 

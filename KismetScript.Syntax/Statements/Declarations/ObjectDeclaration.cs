@@ -9,7 +9,11 @@ namespace KismetScript.Syntax.Statements.Declarations;
 /// </summary>
 public class ObjectDeclaration : Declaration
 {
-    public ObjectDeclaration() : base(DeclarationType.Object)
+    public ObjectDeclaration() : this(DeclarationType.Object)
+    {
+    }
+
+    protected ObjectDeclaration(DeclarationType type) : base(type)
     {
     }
 

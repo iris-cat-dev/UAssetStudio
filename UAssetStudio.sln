@@ -29,6 +29,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UAssetStudio.Mods", "UAsset
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UAssetStudio.Patching.Tests", "UAssetStudio.Patching.Tests\UAssetStudio.Patching.Tests.csproj", "{E4051E28-AE81-4AE6-990D-6890B90727A0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KismetScript.Parser.Tests", "KismetScript.Parser.Tests\KismetScript.Parser.Tests.csproj", "{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -183,6 +185,18 @@ Global
 		{E4051E28-AE81-4AE6-990D-6890B90727A0}.Release|x64.Build.0 = Release|Any CPU
 		{E4051E28-AE81-4AE6-990D-6890B90727A0}.Release|x86.ActiveCfg = Release|Any CPU
 		{E4051E28-AE81-4AE6-990D-6890B90727A0}.Release|x86.Build.0 = Release|Any CPU
+		{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}.Debug|x64.Build.0 = Debug|Any CPU
+		{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}.Debug|x86.Build.0 = Debug|Any CPU
+		{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}.Release|x64.ActiveCfg = Release|Any CPU
+		{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}.Release|x64.Build.0 = Release|Any CPU
+		{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}.Release|x86.ActiveCfg = Release|Any CPU
+		{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

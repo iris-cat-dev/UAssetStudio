@@ -240,6 +240,14 @@ public class KismetScriptASTParser
 
             statement = declaration;
         }
+        else if (TryGet(context, context.bpVariableDeclarationStatement, out var bpVariableDeclarationContext))
+        {
+            VariableDeclaration variableDeclaration = null;
+            if (!TryFunc(bpVariableDeclarationContext, "Failed to parse BP variable declaration", () => TryParseBpVariableDeclaration(bpVariableDeclarationContext, out variableDeclaration)))
+                return false;
+
+            statement = variableDeclaration;
+        }
         else if (TryGet(context, context.expression, out var expressionContext))
         {
             Expression expression = null;
@@ -372,6 +380,16 @@ public class KismetScriptASTParser
             return true;
         }
 
+        if (TryGet(context, context.blueprintDeclarationStatement, out var blueprintDeclarationContext))
+        {
+            BlueprintDeclaration blueprintDeclaration = null;
+            if (!TryFunc(blueprintDeclarationContext, "Failed to parse blueprint declaration", () => TryParseBlueprintDeclaration(blueprintDeclarationContext, out blueprintDeclaration)))
+                return false;
+
+            declaration = blueprintDeclaration;
+            return true;
+        }
+
         // Parse function declaration statement
         if (TryGet(context, context.procedureDeclarationStatement, out var procedureDeclarationContext))
         {
@@ -465,6 +483,208 @@ public class KismetScriptASTParser
         }
 
         LogTrace($"Parsed package import: {packageDeclaration}");
+        return true;
+    }
+
+    private bool TryParseBlueprintDeclaration(KismetScriptParser.BlueprintDeclarationStatementContext context, out BlueprintDeclaration blueprintDeclaration)
+    {
+        LogTrace("Start parsing blueprint declaration");
+        LogContextInfo(context);
+
+        blueprintDeclaration = CreateAstNode<BlueprintDeclaration>(context);
+
+        if (!TryParseIdentifier(context.Identifier(), out var identifier))
+        {
+            LogError(context, "Missing blueprint name");
+            return false;
+        }
+        blueprintDeclaration.Identifier = identifier;
+
+        if (!TryParseTypeIdentifier(context.typeIdentifier(), out var parentType))
+        {
+            LogError(context.typeIdentifier(), "Failed to parse blueprint parent type");
+            return false;
+        }
+        blueprintDeclaration.InheritedTypeIdentifiers.Add(new Identifier(parentType.Text));
+
+        if (!TryParseStringLiteral(context.StringLiteral(), out var packagePath))
+        {
+            LogError(context, "Failed to parse blueprint package path");
+            return false;
+        }
+        blueprintDeclaration.PackagePath = packagePath;
+
+        foreach (var memberContext in context.blueprintMemberStatement())
+        {
+            if (!TryParseBlueprintMember(memberContext, out var member))
+            {
+                LogError(memberContext, "Failed to parse blueprint member");
+                return false;
+            }
+            blueprintDeclaration.Declarations.Add(member);
+        }
+
+        LogTrace("Done parsing blueprint declaration");
+        return true;
+    }
+
+    private bool TryParseBlueprintMember(KismetScriptParser.BlueprintMemberStatementContext context, out Declaration declaration)
+    {
+        declaration = null!;
+
+        if (TryGet(context, context.componentDeclarationStatement, out var componentContext))
+        {
+            if (!TryParseComponentDeclaration(componentContext, out var componentDeclaration))
+                return false;
+            declaration = componentDeclaration;
+        }
+        else if (TryGet(context, context.bpProcedureDeclarationStatement, out var bpProcedureContext))
+        {
+            if (!TryParseBpProcedureDeclaration(bpProcedureContext, out var procedureDeclaration))
+                return false;
+            declaration = procedureDeclaration;
+        }
+        else if (TryGet(context, context.bpVariableDeclarationStatement, out var bpVariableContext))
+        {
+            if (!TryParseBpVariableDeclaration(bpVariableContext, out var variableDeclaration))
+                return false;
+            declaration = variableDeclaration;
+        }
+        else if (TryGet(context, context.procedureDeclarationStatement, out var procedureContext))
+        {
+            if (!TryParseProcedureDeclaration(procedureContext, out var procedureDeclaration))
+                return false;
+            declaration = procedureDeclaration;
+        }
+        else if (TryGet(context, context.variableDeclarationStatement, out var variableContext))
+        {
+            if (!TryParseVariableDeclaration(variableContext, out var variableDeclaration))
+                return false;
+            declaration = variableDeclaration;
+        }
+        else if (TryGet(context, context.enumTypeDeclarationStatement, out var enumContext))
+        {
+            if (!TryParseEnumDeclaration(enumContext, out var enumDeclaration))
+                return false;
+            declaration = enumDeclaration;
+        }
+        else if (TryGet(context, context.objectDeclarationStatement, out var objectContext))
+        {
+            if (!TryParseObjectDeclaration(objectContext, out var objectDeclaration))
+                return false;
+            declaration = objectDeclaration;
+        }
+        else
+        {
+            LogError(context, "Expected blueprint member");
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool TryParseDecorator(KismetScriptParser.DecoratorContext context, out DecoratorDeclaration decorator)
+    {
+        decorator = CreateAstNode<DecoratorDeclaration>(context);
+
+        if (!TryParseIdentifier(context.Identifier(), out var identifier))
+            return false;
+
+        decorator.Identifier = identifier;
+
+        var argumentListContext = context.argumentList();
+        if (argumentListContext != null)
+        {
+            if (!TryParseArgumentList(argumentListContext, out var arguments))
+                return false;
+            decorator.Arguments.AddRange(arguments);
+        }
+
+        return true;
+    }
+
+    private bool TryParseDecorators(KismetScriptParser.DecoratorContext[] contexts, out List<DecoratorDeclaration> decorators)
+    {
+        decorators = new List<DecoratorDeclaration>();
+        foreach (var context in contexts)
+        {
+            if (!TryParseDecorator(context, out var decorator))
+                return false;
+            decorators.Add(decorator);
+        }
+        return true;
+    }
+
+    private bool TryParseComponentDeclaration(KismetScriptParser.ComponentDeclarationStatementContext context, out ComponentDeclaration componentDeclaration)
+    {
+        LogTrace("Start parsing component declaration");
+        LogContextInfo(context);
+
+        componentDeclaration = CreateAstNode<ComponentDeclaration>(context);
+
+        if (!TryParseDecorators(context.decorator(), out var decorators))
+        {
+            LogError(context, "Failed to parse component decorators");
+            return false;
+        }
+        componentDeclaration.Decorators.AddRange(decorators);
+
+        if (!TryParseIdentifier(context.Identifier(), out var identifier))
+        {
+            LogError(context, "Missing component name");
+            return false;
+        }
+        componentDeclaration.Identifier = identifier;
+
+        if (!TryParseTypeIdentifier(context.typeIdentifier(), out var componentType))
+        {
+            LogError(context.typeIdentifier(), "Failed to parse component type");
+            return false;
+        }
+        componentDeclaration.ClassIdentifier = new Identifier(componentType.Text);
+
+        foreach (var propContext in context.componentPropertyAssignment())
+        {
+            if (!TryParseComponentPropertyAssignment(propContext, out var propertyAssignment))
+            {
+                LogError(propContext, "Failed to parse component property assignment");
+                return false;
+            }
+            componentDeclaration.ComponentProperties.Add(propertyAssignment);
+        }
+
+        LogTrace("Done parsing component declaration");
+        return true;
+    }
+
+    private bool TryParseComponentPropertyAssignment(KismetScriptParser.ComponentPropertyAssignmentContext context, out ComponentPropertyAssignment propertyAssignment)
+    {
+        propertyAssignment = CreateAstNode<ComponentPropertyAssignment>(context);
+
+        if (!TryParseIdentifier(context.Identifier(), out var identifier))
+        {
+            LogError(context, "Failed to parse component property name");
+            return false;
+        }
+        propertyAssignment.Name = identifier;
+
+        if (context.typeIdentifier() != null)
+        {
+            if (!TryParseTypeIdentifier(context.typeIdentifier(), out var typeIdentifier))
+            {
+                LogError(context.typeIdentifier(), "Failed to parse component property type");
+                return false;
+            }
+            propertyAssignment.Type = typeIdentifier;
+        }
+
+        if (!TryParseExpression(context.expression(), out var value))
+        {
+            LogError(context.expression(), "Failed to parse component property value");
+            return false;
+        }
+        propertyAssignment.Value = value;
+
         return true;
     }
 
@@ -723,6 +943,78 @@ public class KismetScriptASTParser
         return true;
     }
 
+    private bool TryParseBpProcedureDeclaration(KismetScriptParser.BpProcedureDeclarationStatementContext context, out ProcedureDeclaration procedureDeclaration)
+    {
+        LogTrace("Start parsing BP procedure declaration");
+        LogContextInfo(context);
+
+        procedureDeclaration = CreateAstNode<ProcedureDeclaration>(context);
+        procedureDeclaration.IsBlueprintStyle = true;
+
+        if (!TryParseDecorators(context.decorator(), out var decorators))
+        {
+            LogError(context, "Failed to parse BP procedure decorators");
+            return false;
+        }
+        procedureDeclaration.Decorators.AddRange(decorators);
+
+        if (context.Event() != null)
+        {
+            procedureDeclaration.BlueprintKind = BlueprintProcedureKind.Event;
+            procedureDeclaration.ReturnType = TypeIdentifier.Void;
+        }
+        else if (context.Callable() != null)
+        {
+            procedureDeclaration.BlueprintKind = BlueprintProcedureKind.Callable;
+            if (!TryParseTypeIdentifier(context.typeIdentifier(), out var returnType))
+            {
+                LogError(context.typeIdentifier(), "Failed to parse callable return type");
+                return false;
+            }
+            procedureDeclaration.ReturnType = returnType;
+        }
+        else if (context.Pure() != null)
+        {
+            procedureDeclaration.BlueprintKind = BlueprintProcedureKind.Pure;
+            if (!TryParseTypeIdentifier(context.typeIdentifier(), out var returnType))
+            {
+                LogError(context.typeIdentifier(), "Failed to parse pure return type");
+                return false;
+            }
+            procedureDeclaration.ReturnType = returnType;
+        }
+        else
+        {
+            LogError(context, "Expected event, callable, or pure BP procedure");
+            return false;
+        }
+
+        if (!TryParseIdentifier(context.Identifier(), out var identifier))
+        {
+            LogError(context, "Expected BP procedure identifier");
+            return false;
+        }
+        identifier.ExpressionValueKind = ValueKind.Procedure;
+        procedureDeclaration.Identifier = identifier;
+
+        if (!TryParseParameterList(context.parameterList(), out var parameters))
+        {
+            LogError(context.parameterList(), "Failed to parse BP procedure parameters");
+            return false;
+        }
+        procedureDeclaration.Parameters = parameters;
+
+        if (!TryParseCompoundStatement(context.compoundStatement(), out var body))
+        {
+            LogError(context.compoundStatement(), "Failed to parse BP procedure body");
+            return false;
+        }
+        procedureDeclaration.Body = body;
+
+        LogTrace($"Done parsing BP procedure declaration: {procedureDeclaration}");
+        return true;
+    }
+
     private bool TryParseAttributeList(KismetScriptParser.AttributeListContext context, out List<Syntax.Statements.Declarations.AttributeDeclaration> attributes)
     {
         attributes = new List<Syntax.Statements.Declarations.AttributeDeclaration>();
@@ -740,6 +1032,12 @@ public class KismetScriptASTParser
                 if (!TryParseArgumentList(argumentListContext, out var arguments))
                     return false;
                 attribute.Arguments.AddRange(arguments);
+            }
+            else if (attributeDeclarationNode.expression() != null)
+            {
+                if (!TryParseExpression(attributeDeclarationNode.expression(), out var expression))
+                    return false;
+                attribute.Arguments.Add(new Argument(expression));
             }
 
             attributes.Add(attribute);
@@ -902,6 +1200,50 @@ public class KismetScriptASTParser
         //}
 
         LogTrace($"Done parsing variable declaration: {variableDeclaration}");
+        return true;
+    }
+
+    private bool TryParseBpVariableDeclaration(KismetScriptParser.BpVariableDeclarationStatementContext context, out VariableDeclaration variableDeclaration)
+    {
+        LogTrace("Parsing BP variable declaration");
+        LogContextInfo(context);
+
+        variableDeclaration = CreateAstNode<VariableDeclaration>(context);
+        variableDeclaration.IsBlueprintStyle = true;
+
+        if (!TryParseDecorators(context.decorator(), out var decorators))
+        {
+            LogError(context, "Failed to parse BP variable decorators");
+            return false;
+        }
+        variableDeclaration.Decorators.AddRange(decorators);
+
+        if (!TryParseIdentifier(context.Identifier(), out var identifier))
+        {
+            LogError(context, "Expected BP variable identifier");
+            return false;
+        }
+        variableDeclaration.Identifier = identifier;
+
+        if (!TryParseTypeIdentifier(context.typeIdentifier(), out var typeIdentifier))
+        {
+            LogError(context.typeIdentifier(), "Failed to parse BP variable type");
+            return false;
+        }
+        variableDeclaration.Type = typeIdentifier;
+        identifier.ExpressionValueKind = typeIdentifier.ValueKind;
+
+        if (context.expression() != null)
+        {
+            if (!TryParseExpression(context.expression(), out var initializer))
+            {
+                LogError(context.expression(), "Failed to parse BP variable initializer");
+                return false;
+            }
+            variableDeclaration.Initializer = initializer;
+        }
+
+        LogTrace($"Done parsing BP variable declaration: {variableDeclaration}");
         return true;
     }
 
@@ -1376,6 +1718,16 @@ public class KismetScriptASTParser
         callExpression.Identifier = identifier;
 
         LogTrace($"Parsing call expression: {identifier}( ... )");
+
+        if (context.typeArgumentList() != null)
+        {
+            foreach (var typeArgumentContext in context.typeArgumentList().typeIdentifier())
+            {
+                if (!TryParseTypeIdentifier(typeArgumentContext, out var typeArgument))
+                    return false;
+                callExpression.TypeArguments.Add(typeArgument);
+            }
+        }
 
         if (TryGet(context, context.argumentList, out var argumentListContext))
         {

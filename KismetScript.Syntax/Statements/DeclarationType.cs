@@ -9,6 +9,8 @@ public enum DeclarationType
     EnumLabel,
     Label,
     Class,
+    Blueprint,
     Package,
-    Object
+    Object,
+    Component
 }

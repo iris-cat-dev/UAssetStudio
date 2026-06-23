@@ -92,11 +92,17 @@ public interface ISyntaxNodeVisitor {
     void Visit(SubtractionAssignmentOperator node);
     void Visit(SubtractionOperator node);
     void Visit(AttributeDeclaration node);
+    void Visit(DecoratorDeclaration node);
+    void Visit(BlueprintDeclaration node);
     void Visit(ClassDeclaration node);
+    void Visit(ComponentDeclaration node);
+    void Visit(ComponentPropertyAssignment node);
     void Visit(EnumDeclaration node);
     void Visit(EnumValueDeclaration node);
     void Visit(FunctionDeclaration node);
     void Visit(LabelDeclaration node);
+    void Visit(ObjectDeclaration node);
+    void Visit(ObjectPropertyAssignment node);
     void Visit(ProcedureDeclaration node);
     void Visit(VariableDeclaration node);
     void Visit(ArrayVariableDeclaration node);
@@ -243,6 +249,12 @@ public abstract class SyntaxNodeVisitorBase : ISyntaxNodeVisitor {
     }
     public virtual void Visit(CallOperator node) {
         if (node.Identifier != null) Visit(node.Identifier);
+        if (node.TypeArguments != null) {
+            foreach (var item in node.TypeArguments)
+            {
+                if (item != null) Visit(item);
+            }
+        }
         if (node.Arguments != null) {
             foreach (var item in node.Arguments)
             {
@@ -461,6 +473,44 @@ public abstract class SyntaxNodeVisitorBase : ISyntaxNodeVisitor {
             }
         }
     }
+    public virtual void Visit(DecoratorDeclaration node) {
+        if (node.Identifier != null) Visit(node.Identifier);
+        if (node.Arguments != null) {
+            foreach (var item in node.Arguments)
+            {
+                if (item != null) Visit(item);
+            }
+        }
+    }
+    public virtual void Visit(BlueprintDeclaration node) {
+        if (node.PackagePath != null) Visit(node.PackagePath);
+        if (node.InheritedTypeIdentifiers != null) {
+            foreach (var item in node.InheritedTypeIdentifiers)
+            {
+                if (item != null) Visit(item);
+            }
+        }
+        if (node.Declarations != null) {
+            foreach (var item in node.Declarations)
+            {
+                if (item != null) Visit(item);
+            }
+        }
+        if (node.BaseClassIdentifier != null) Visit(node.BaseClassIdentifier);
+        if (node.Decorators != null) {
+            foreach (var item in node.Decorators)
+            {
+                if (item != null) Visit(item);
+            }
+        }
+        if (node.Attributes != null) {
+            foreach (var item in node.Attributes)
+            {
+                if (item != null) Visit(item);
+            }
+        }
+        if (node.Identifier != null) Visit(node.Identifier);
+    }
     public virtual void Visit(ClassDeclaration node) {
         if (node.InheritedTypeIdentifiers != null) {
             foreach (var item in node.InheritedTypeIdentifiers)
@@ -490,6 +540,18 @@ public abstract class SyntaxNodeVisitorBase : ISyntaxNodeVisitor {
                 if (item != null) Visit(item);
             }
         }
+        if (node.Decorators != null) {
+            foreach (var item in node.Decorators)
+            {
+                if (item != null) Visit(item);
+            }
+        }
+        if (node.Decorators != null) {
+            foreach (var item in node.Decorators)
+            {
+                if (item != null) Visit(item);
+            }
+        }
         if (node.Attributes != null) {
             foreach (var item in node.Attributes)
             {
@@ -498,8 +560,74 @@ public abstract class SyntaxNodeVisitorBase : ISyntaxNodeVisitor {
         }
         if (node.Identifier != null) Visit(node.Identifier);
     }
+    public virtual void Visit(ComponentDeclaration node) {
+        if (node.ComponentProperties != null) {
+            foreach (var item in node.ComponentProperties)
+            {
+                if (item != null) Visit(item);
+            }
+        }
+        if (node.ClassIdentifier != null) Visit(node.ClassIdentifier);
+        if (node.Properties != null) {
+            foreach (var item in node.Properties)
+            {
+                if (item != null) Visit(item);
+            }
+        }
+        if (node.Decorators != null) {
+            foreach (var item in node.Decorators)
+            {
+                if (item != null) Visit(item);
+            }
+        }
+        if (node.Attributes != null) {
+            foreach (var item in node.Attributes)
+            {
+                if (item != null) Visit(item);
+            }
+        }
+        if (node.Identifier != null) Visit(node.Identifier);
+    }
+    public virtual void Visit(ComponentPropertyAssignment node) {
+        if (node.Type != null) Visit(node.Type);
+        if (node.Name != null) Visit(node.Name);
+        if (node.Value != null) Visit(node.Value);
+    }
+    public virtual void Visit(ObjectDeclaration node) {
+        if (node.ClassIdentifier != null) Visit(node.ClassIdentifier);
+        if (node.Properties != null) {
+            foreach (var item in node.Properties)
+            {
+                if (item != null) Visit(item);
+            }
+        }
+        if (node.Decorators != null) {
+            foreach (var item in node.Decorators)
+            {
+                if (item != null) Visit(item);
+            }
+        }
+        if (node.Attributes != null) {
+            foreach (var item in node.Attributes)
+            {
+                if (item != null) Visit(item);
+            }
+        }
+        if (node.Identifier != null) Visit(node.Identifier);
+    }
+    public virtual void Visit(ObjectPropertyAssignment node) {
+        if (node.Type != null) Visit(node.Type);
+        if (node.Name != null) Visit(node.Name);
+        if (node.Value != null) Visit(node.Value);
+    }
     public virtual void Visit(EnumValueDeclaration node) {
         if (node.Value != null) Visit(node.Value);
+        if (node.Decorators != null) {
+            foreach (var item in node.Decorators)
+            {
+                if (item != null) Visit(item);
+            }
+        }
         if (node.Attributes != null) {
             foreach (var item in node.Attributes)
             {
@@ -517,6 +645,12 @@ public abstract class SyntaxNodeVisitorBase : ISyntaxNodeVisitor {
                 if (item != null) Visit(item);
             }
         }
+        if (node.Decorators != null) {
+            foreach (var item in node.Decorators)
+            {
+                if (item != null) Visit(item);
+            }
+        }
         if (node.Attributes != null) {
             foreach (var item in node.Attributes)
             {
@@ -526,6 +660,12 @@ public abstract class SyntaxNodeVisitorBase : ISyntaxNodeVisitor {
         if (node.Identifier != null) Visit(node.Identifier);
     }
     public virtual void Visit(LabelDeclaration node) {
+        if (node.Decorators != null) {
+            foreach (var item in node.Decorators)
+            {
+                if (item != null) Visit(item);
+            }
+        }
         if (node.Attributes != null) {
             foreach (var item in node.Attributes)
             {
@@ -544,6 +684,12 @@ public abstract class SyntaxNodeVisitorBase : ISyntaxNodeVisitor {
             }
         }
         if (node.Body != null) Visit(node.Body);
+        if (node.Decorators != null) {
+            foreach (var item in node.Decorators)
+            {
+                if (item != null) Visit(item);
+            }
+        }
         if (node.Attributes != null) {
             foreach (var item in node.Attributes)
             {
@@ -555,6 +701,12 @@ public abstract class SyntaxNodeVisitorBase : ISyntaxNodeVisitor {
     public virtual void Visit(VariableDeclaration node) {
         if (node.Type != null) Visit(node.Type);
         if (node.Initializer != null) Visit(node.Initializer);
+        if (node.Decorators != null) {
+            foreach (var item in node.Decorators)
+            {
+                if (item != null) Visit(item);
+            }
+        }
         if (node.Attributes != null) {
             foreach (var item in node.Attributes)
             {
@@ -567,6 +719,12 @@ public abstract class SyntaxNodeVisitorBase : ISyntaxNodeVisitor {
         if (node.Size != null) Visit(node.Size);
         if (node.Type != null) Visit(node.Type);
         if (node.Initializer != null) Visit(node.Initializer);
+        if (node.Decorators != null) {
+            foreach (var item in node.Decorators)
+            {
+                if (item != null) Visit(item);
+            }
+        }
         if (node.Attributes != null) {
             foreach (var item in node.Attributes)
             {

@@ -1,0 +1,7 @@
+blueprint BP_Door : Actor at "/Game/Generated/BP_Door_Gen" {
+    @editable
+    @category("Door")
+    var OpenAngle: float = 90.0;
+
+    var IsOpen: bool = false;
+}

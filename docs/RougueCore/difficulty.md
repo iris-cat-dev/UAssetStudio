@@ -20,7 +20,7 @@ RogueCore 的「难度」**不是单一配置文件**，而是由多层 DataAsse
 
 - **不存在**名为 `Difficulty.uasset` 或 `RCDifficulty.uasset` 的总入口。
 - `DNA_BXE_Linear_*` 定义关卡结构（阶段数、房间标签），**不含**难度数值。
-- `GD_BXE_ProgressionSettings` 是玩家账号 **XP 升级**，与任务内敌人强度无关。
+- `GD_BXE_ProgressionSettings` 是玩家账号 **XP 升级**，与任务内敌人强度无关（详见 [`account-xp-progression.md`](./account-xp-progression.md)）。
 - 任务选择 UI 的 Short/Long 标签（`MD_Duration_*`）与 Hostile Reading 计时无关。
 
 ---

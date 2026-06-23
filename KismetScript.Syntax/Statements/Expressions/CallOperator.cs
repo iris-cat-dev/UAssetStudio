@@ -1,4 +1,5 @@
 using System.Text;
+using KismetScript.Syntax.Statements.Expressions.Identifiers;
 
 namespace KismetScript.Syntax.Statements.Expressions;
 
@@ -7,6 +8,8 @@ public class CallOperator : Expression, IOperator
     public Identifier Identifier { get; set; } = null!;
 
     public List<Argument> Arguments { get; set; }
+
+    public List<TypeIdentifier> TypeArguments { get; set; } = new();
 
     public int Precedence => 2;
 
@@ -37,6 +40,16 @@ public class CallOperator : Expression, IOperator
     {
         var builder = new StringBuilder();
         builder.Append(Identifier);
+        if (TypeArguments.Count > 0)
+        {
+            builder.Append("<");
+            builder.Append(TypeArguments[0]);
+            for (int i = 1; i < TypeArguments.Count; i++)
+            {
+                builder.Append($", {TypeArguments[i]}");
+            }
+            builder.Append(">");
+        }
         builder.Append("(");
 
         if (Arguments.Count > 0)

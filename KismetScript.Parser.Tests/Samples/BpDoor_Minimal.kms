@@ -1,0 +1,5 @@
+blueprint BP_Door : Actor at "/Game/Generated/BP_Door_Gen" {
+    event BeginPlay() {
+        print("Door ready");
+    }
+}

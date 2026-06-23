@@ -1,0 +1,20 @@
+from "/Script/Engine" import {
+    class Actor;
+    class KismetSystemLibrary {
+        [UnknownSignature, FinalFunction] public static void PrintString(Actor WorldContextObject, string InString);
+    }
+}
+
+[Parsed, CompiledFromBlueprint]
+public class BP_Door_C : Actor {
+    [FUNC_Public]
+    public void ReceiveBeginPlay() {
+        KismetSystemLibrary.PrintString(this, "Door ready");
+    }
+
+    public bool IsOpen = false;
+}
+
+object Default__BP_Door_C : BP_Door_C {
+    bool IsOpen = false;
+}

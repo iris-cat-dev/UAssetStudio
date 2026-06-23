@@ -1,0 +1,10 @@
+blueprint BP_Door : Actor at "/Game/Generated/BP_Door_Gen" {
+    @root
+    component Root: SceneComponent;
+
+    @attach(Root)
+    component Mesh: StaticMeshComponent {
+        StaticMesh = asset<StaticMesh>("/Game/Props/SM_Door.SM_Door");
+        Mobility: byte = 1;
+    }
+}

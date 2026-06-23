@@ -1,0 +1,19 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "0.1.0",
+  "FriendlyName": "KMS Blueprint Importer",
+  "Description": "Imports KMS-BP bridge JSON into Unreal Blueprint assets.",
+  "Category": "Scripting",
+  "CreatedBy": "UAssetStudio",
+  "EnabledByDefault": false,
+  "CanContainContent": false,
+  "IsBetaVersion": true,
+  "Modules": [
+    {
+      "Name": "KmsBlueprintImporter",
+      "Type": "Editor",
+      "LoadingPhase": "Default"
+    }
+  ]
+}

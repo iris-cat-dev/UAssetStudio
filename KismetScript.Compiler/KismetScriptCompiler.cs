@@ -94,7 +94,15 @@ public partial class KismetScriptCompiler
             .Where(x => x is not PackageDeclaration)
             .Where(x => !x.Attributes.Any(x => x.Identifier.Text == "Import")))
         {
-            if (declaration is ProcedureDeclaration procedureDeclaration)
+            if (declaration is BlueprintDeclaration)
+            {
+                throw new UnexpectedSyntaxError(declaration);
+            }
+            else if (declaration is ComponentDeclaration)
+            {
+                throw new UnexpectedSyntaxError(declaration);
+            }
+            else if (declaration is ProcedureDeclaration procedureDeclaration)
             {
                 script.Functions.Add(CompileFunction(procedureDeclaration));
             }
@@ -498,6 +506,9 @@ public partial class KismetScriptCompiler
     /// <exception cref="UnexpectedSyntaxError"></exception>
     public CompiledClassContext CompileClass(ClassDeclaration classDeclaration)
     {
+        if (classDeclaration is BlueprintDeclaration)
+            throw new UnexpectedSyntaxError(classDeclaration);
+
         var classSymbol = GetRequiredSymbol<ClassSymbol>(classDeclaration, classDeclaration.Identifier.Text);
         var compiledBaseClass = classSymbol.BaseClass?.Declaration != null ?
             CompileClass(classSymbol.BaseClass.Declaration) : 
