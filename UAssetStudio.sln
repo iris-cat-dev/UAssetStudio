@@ -31,6 +31,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UAssetStudio.Patching.Tests
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KismetScript.Parser.Tests", "KismetScript.Parser.Tests\KismetScript.Parser.Tests.csproj", "{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UAssetAPI.Validation", "UAssetAPI.Validation\UAssetAPI.Validation.csproj", "{2F9FD4AA-D451-428A-B7B4-970F458B9A86}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -197,6 +199,18 @@ Global
 		{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}.Release|x64.Build.0 = Release|Any CPU
 		{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}.Release|x86.ActiveCfg = Release|Any CPU
 		{270BC4A5-CADE-49B6-8E56-7B32FEB7259D}.Release|x86.Build.0 = Release|Any CPU
+		{2F9FD4AA-D451-428A-B7B4-970F458B9A86}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2F9FD4AA-D451-428A-B7B4-970F458B9A86}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2F9FD4AA-D451-428A-B7B4-970F458B9A86}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{2F9FD4AA-D451-428A-B7B4-970F458B9A86}.Debug|x64.Build.0 = Debug|Any CPU
+		{2F9FD4AA-D451-428A-B7B4-970F458B9A86}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{2F9FD4AA-D451-428A-B7B4-970F458B9A86}.Debug|x86.Build.0 = Debug|Any CPU
+		{2F9FD4AA-D451-428A-B7B4-970F458B9A86}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2F9FD4AA-D451-428A-B7B4-970F458B9A86}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2F9FD4AA-D451-428A-B7B4-970F458B9A86}.Release|x64.ActiveCfg = Release|Any CPU
+		{2F9FD4AA-D451-428A-B7B4-970F458B9A86}.Release|x64.Build.0 = Release|Any CPU
+		{2F9FD4AA-D451-428A-B7B4-970F458B9A86}.Release|x86.ActiveCfg = Release|Any CPU
+		{2F9FD4AA-D451-428A-B7B4-970F458B9A86}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
