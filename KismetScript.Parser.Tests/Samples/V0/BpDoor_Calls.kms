@@ -1,0 +1,16 @@
+blueprint BP_Door_Calls : Actor at "/Game/Generated/BP_Door_Calls_Gen" {
+    var OpenAngle: float = 45.0;
+    var DoorController: Object<Actor>;
+
+    callable void ExerciseCalls(out Result: int) {
+        var LoadedMesh: Object<StaticMesh> = asset<StaticMesh>("/Game/Props/SM_Door.SM_Door");
+        var Clamped: float = MathLibrary.Clamp<float>(OpenAngle, 0.0, 90.0);
+
+        print("Door ready");
+        KismetSystemLibrary.PrintString("Door ready");
+        DoorController.Open();
+        DoorController.Close();
+        TryGetAngle(out Result);
+        TryGetAngle(out float Scratch);
+    }
+}

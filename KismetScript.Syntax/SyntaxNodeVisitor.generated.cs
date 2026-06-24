@@ -348,7 +348,11 @@ public abstract class SyntaxNodeVisitorBase : ISyntaxNodeVisitor {
     public virtual void Visit(StringLiteral node) {
     }
     public virtual void Visit(TypeIdentifier node) {
-        if (node.TypeParameter != null) Visit(node.TypeParameter);
+        if (node.TypeParameters.Count > 0) {
+            foreach (var item in node.TypeParameters)
+                Visit(item);
+        }
+        else if (node.TypeParameter != null) Visit(node.TypeParameter);
     }
     public virtual void Visit(AdditionAssignmentOperator node) {
         if (node.Left != null) Visit(node.Left);

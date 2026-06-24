@@ -1,0 +1,23 @@
+blueprint BP_DoorV1_Dispatchers : Actor at "/Game/Generated/BP_DoorV1_Dispatchers_Gen" {
+    var IsOpen: bool = false;
+
+    @category("Door")
+    dispatcher OnDoorToggled(IsOpen: bool);
+
+    event BeginPlay() {
+        bind OnDoorToggled += HandleDoorToggled;
+    }
+
+    callable void Toggle() {
+        IsOpen = !IsOpen;
+        OnDoorToggled.Broadcast(IsOpen);
+    }
+
+    callable void StopListening() {
+        unbind OnDoorToggled -= HandleDoorToggled;
+    }
+
+    callable void HandleDoorToggled(NewValue: bool) {
+        print("door toggled");
+    }
+}

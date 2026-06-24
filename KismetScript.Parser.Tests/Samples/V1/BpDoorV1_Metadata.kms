@@ -1,0 +1,29 @@
+@displayName("Generated Door")
+@tooltip("Door actor generated from KMS-BP v1")
+blueprint BP_DoorV1_Metadata : Actor at "/Game/Generated/BP_DoorV1_Metadata_Gen" {
+    @root
+    @tooltip("Scene root")
+    component Root: SceneComponent;
+
+    @attach(Root, socket = "DoorSocket")
+    @tag("DoorVisual")
+    @tooltip("Door mesh")
+    component Mesh: StaticMeshComponent {
+        ComponentTags = ["Door", "Interactable"];
+    }
+
+    @editable
+    @category("Door")
+    @tooltip("Angle in degrees")
+    @clamp(0.0, 180.0)
+    @ui(0.0, 120.0)
+    @exposeOnSpawn
+    var OpenAngle: float = 90.0;
+
+    @category("Door")
+    @keywords("open close toggle interact")
+    @callInEditor
+    callable void Toggle() {
+        print("toggle");
+    }
+}

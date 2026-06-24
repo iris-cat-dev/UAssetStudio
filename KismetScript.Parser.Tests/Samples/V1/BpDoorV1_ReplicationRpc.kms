@@ -1,0 +1,28 @@
+blueprint BP_DoorV1_ReplicationRpc : Actor at "/Game/Generated/BP_DoorV1_ReplicationRpc_Gen" {
+    @replicated
+    @repNotify(OnRep_IsOpen)
+    var IsOpen: bool = false;
+
+    event OnRep_IsOpen() {
+        print("replicated");
+    }
+
+    @rpc(server, reliable)
+    callable void ServerSetOpen(NewValue: bool) {
+        SetOpen(NewValue);
+    }
+
+    @rpc(client, unreliable)
+    callable void ClientPlayDoorSound() {
+        print("sound");
+    }
+
+    @rpc(multicast, reliable)
+    callable void MulticastDoorToggled(NewValue: bool) {
+        print("multicast");
+    }
+
+    callable void SetOpen(NewValue: bool) {
+        IsOpen = NewValue;
+    }
+}

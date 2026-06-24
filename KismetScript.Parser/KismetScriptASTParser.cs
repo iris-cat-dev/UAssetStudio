@@ -272,6 +272,14 @@ public class KismetScriptASTParser
 
             statement = forStatement;
         }
+        else if (TryGet(context, context.foreachStatement, out var foreachStatementContext))
+        {
+            ForeachStatement foreachStatement = null;
+            if (!TryFunc(foreachStatementContext, "Failed to parse foreach statement", () => TryParseForeachStatement(foreachStatementContext, out foreachStatement)))
+                return false;
+
+            statement = foreachStatement;
+        }
         else if (TryGet(context, context.whileStatement, out var whileStatementContext))
         {
             WhileStatement whileStatement = null;
@@ -313,6 +321,16 @@ public class KismetScriptASTParser
             }
 
             statement = switchStatement;
+        }
+        else if (TryGet(context, context.delegateBindingStatement, out var delegateBindingStatementContext))
+        {
+            if (!TryParseDelegateBindingStatement(delegateBindingStatementContext, out var delegateBindingStatement))
+            {
+                LogError(delegateBindingStatementContext, "Failed to parse delegate binding statement");
+                return false;
+            }
+
+            statement = delegateBindingStatement;
         }
         else
         {
@@ -493,6 +511,13 @@ public class KismetScriptASTParser
 
         blueprintDeclaration = CreateAstNode<BlueprintDeclaration>(context);
 
+        if (!TryParseDecorators(context.decorator(), out var decorators))
+        {
+            LogError(context, "Failed to parse blueprint decorators");
+            return false;
+        }
+        blueprintDeclaration.Decorators.AddRange(decorators);
+
         if (!TryParseIdentifier(context.Identifier(), out var identifier))
         {
             LogError(context, "Missing blueprint name");
@@ -500,12 +525,24 @@ public class KismetScriptASTParser
         }
         blueprintDeclaration.Identifier = identifier;
 
-        if (!TryParseTypeIdentifier(context.typeIdentifier(), out var parentType))
+        var typeIdentifierContexts = context.typeIdentifier();
+        if (typeIdentifierContexts.Length < 1 || !TryParseTypeIdentifier(typeIdentifierContexts[0], out var parentType))
         {
-            LogError(context.typeIdentifier(), "Failed to parse blueprint parent type");
+            LogError(context, "Failed to parse blueprint parent type");
             return false;
         }
         blueprintDeclaration.InheritedTypeIdentifiers.Add(new Identifier(parentType.Text));
+
+        for (var i = 1; i < typeIdentifierContexts.Length; i++)
+        {
+            if (!TryParseTypeIdentifier(typeIdentifierContexts[i], out var implementedType))
+            {
+                LogError(typeIdentifierContexts[i], "Failed to parse blueprint implemented type");
+                return false;
+            }
+
+            blueprintDeclaration.InheritedTypeIdentifiers.Add(new Identifier(implementedType.Text));
+        }
 
         if (!TryParseStringLiteral(context.StringLiteral(), out var packagePath))
         {
@@ -587,10 +624,10 @@ public class KismetScriptASTParser
     {
         decorator = CreateAstNode<DecoratorDeclaration>(context);
 
-        if (!TryParseIdentifier(context.Identifier(), out var identifier))
-            return false;
-
-        decorator.Identifier = identifier;
+        decorator.Identifier = new Identifier(context.decoratorIdentifier().GetText())
+        {
+            SourceInfo = ParseSourceInfo(context.decoratorIdentifier().Start)
+        };
 
         var argumentListContext = context.argumentList();
         if (argumentListContext != null)
@@ -983,13 +1020,31 @@ public class KismetScriptASTParser
             }
             procedureDeclaration.ReturnType = returnType;
         }
+        else if (context.Construction() != null)
+        {
+            procedureDeclaration.BlueprintKind = BlueprintProcedureKind.Construction;
+            procedureDeclaration.ReturnType = TypeIdentifier.Void;
+        }
+        else if (context.Dispatcher() != null)
+        {
+            procedureDeclaration.BlueprintKind = BlueprintProcedureKind.Dispatcher;
+            procedureDeclaration.ReturnType = TypeIdentifier.Void;
+        }
         else
         {
-            LogError(context, "Expected event, callable, or pure BP procedure");
+            LogError(context, "Expected event, callable, pure, construction, or dispatcher BP procedure");
             return false;
         }
 
-        if (!TryParseIdentifier(context.Identifier(), out var identifier))
+        Identifier identifier;
+        if (context.Construction() != null)
+        {
+            identifier = new Identifier(ValueKind.Procedure, "ConstructionScript")
+            {
+                SourceInfo = procedureDeclaration.SourceInfo
+            };
+        }
+        else if (!TryParseIdentifier(context.Identifier(), out identifier))
         {
             LogError(context, "Expected BP procedure identifier");
             return false;
@@ -997,19 +1052,27 @@ public class KismetScriptASTParser
         identifier.ExpressionValueKind = ValueKind.Procedure;
         procedureDeclaration.Identifier = identifier;
 
-        if (!TryParseParameterList(context.parameterList(), out var parameters))
+        if (context.parameterList() != null)
         {
-            LogError(context.parameterList(), "Failed to parse BP procedure parameters");
-            return false;
-        }
-        procedureDeclaration.Parameters = parameters;
+            if (!TryParseParameterList(context.parameterList(), out var parameters))
+            {
+                LogError(context.parameterList(), "Failed to parse BP procedure parameters");
+                return false;
+            }
 
-        if (!TryParseCompoundStatement(context.compoundStatement(), out var body))
-        {
-            LogError(context.compoundStatement(), "Failed to parse BP procedure body");
-            return false;
+            procedureDeclaration.Parameters = parameters;
         }
-        procedureDeclaration.Body = body;
+
+        if (context.compoundStatement() != null)
+        {
+            if (!TryParseCompoundStatement(context.compoundStatement(), out var body))
+            {
+                LogError(context.compoundStatement(), "Failed to parse BP procedure body");
+                return false;
+            }
+
+            procedureDeclaration.Body = body;
+        }
 
         LogTrace($"Done parsing BP procedure declaration: {procedureDeclaration}");
         return true;
@@ -1411,14 +1474,14 @@ public class KismetScriptASTParser
         else if (TryCast<KismetScriptParser.SubscriptExpressionContext>(context, out var subscriptExpressionContext))
         {
             var subscriptOperator = CreateAstNode<SubscriptOperator>(subscriptExpressionContext);
-            if (!TryParseIdentifier(subscriptExpressionContext.Identifier(), out var operand))
+            if (!TryParseExpression(subscriptExpressionContext.expression(0), out var operand))
             {
                 return false;
             }
 
             subscriptOperator.Operand = operand;
 
-            if (!TryParseExpression(subscriptExpressionContext.expression(), out var indexExpression))
+            if (!TryParseExpression(subscriptExpressionContext.expression(1), out var indexExpression))
             {
                 return false;
             }
@@ -2732,13 +2795,18 @@ public class KismetScriptASTParser
     private bool TryParseTypeIdentifier(KismetScriptParser.TypeIdentifierContext node, out TypeIdentifier identifier)
     {
         identifier = CreateAstNode<TypeIdentifier>(node);
-        if (node.typeIdentifier() != null)
+        if (node.typeIdentifier()?.Length > 0)
         {
             // Constructed type
             identifier.Text = node.Identifier().GetText();
-            if (!TryParseTypeIdentifier(node.typeIdentifier(), out var typeParam))
-                return false;
-            identifier.TypeParameter = typeParam;
+            foreach (var typeIdentifierContext in node.typeIdentifier())
+            {
+                if (!TryParseTypeIdentifier(typeIdentifierContext, out var typeParam))
+                    return false;
+
+                identifier.TypeParameters.Add(typeParam);
+            }
+            identifier.TypeParameter = identifier.TypeParameters.FirstOrDefault();
         }
         else
         {
@@ -2767,6 +2835,53 @@ public class KismetScriptASTParser
             // `foo`
             // 0123456
             identifier.Text = identifier.Text.Substring(1, identifier.Text.Length - 2);
+        }
+
+        return true;
+    }
+
+    private bool TryParseForeachStatement(KismetScriptParser.ForeachStatementContext context, out ForeachStatement foreachStatement)
+    {
+        LogContextInfo(context);
+
+        foreachStatement = CreateAstNode<ForeachStatement>(context);
+
+        if (!TryParseIdentifier(context.Identifier(), out var identifier))
+        {
+            LogError(context, "Failed to parse foreach item identifier");
+            return false;
+        }
+        foreachStatement.Identifier = identifier;
+
+        if (!TryParseTypeIdentifier(context.typeIdentifier(), out var typeIdentifier))
+        {
+            LogError(context.typeIdentifier(), "Failed to parse foreach item type");
+            return false;
+        }
+        foreachStatement.Type = typeIdentifier;
+        identifier.ExpressionValueKind = typeIdentifier.ValueKind;
+
+        if (!TryParseExpression(context.expression(), out var collection))
+        {
+            LogError(context.expression(), "Failed to parse foreach collection");
+            return false;
+        }
+        foreachStatement.Collection = collection;
+
+        if (!TryParseStatement(context.statement(), out var body))
+        {
+            LogError(context.statement(), "Failed to parse foreach body");
+            return false;
+        }
+
+        if (body is CompoundStatement compoundStatement)
+        {
+            foreachStatement.Body = compoundStatement;
+        }
+        else
+        {
+            foreachStatement.Body = CreateAstNode<CompoundStatement>(context.statement());
+            foreachStatement.Body.Statements.Add(body);
         }
 
         return true;
@@ -3065,6 +3180,30 @@ public class KismetScriptASTParser
         }
 
         LogTrace($"Done parsing switch statement: {switchStatement}");
+
+        return true;
+    }
+
+    private bool TryParseDelegateBindingStatement(KismetScriptParser.DelegateBindingStatementContext context, out DelegateBindingStatement delegateBindingStatement)
+    {
+        LogContextInfo(context);
+
+        delegateBindingStatement = CreateAstNode<DelegateBindingStatement>(context);
+        delegateBindingStatement.IsBind = context.Bind() != null;
+
+        if (!TryParseExpression(context.expression(0), out var target))
+        {
+            LogError(context.expression(0), "Failed to parse delegate binding target");
+            return false;
+        }
+        delegateBindingStatement.Target = target;
+
+        if (!TryParseExpression(context.expression(1), out var handler))
+        {
+            LogError(context.expression(1), "Failed to parse delegate binding handler");
+            return false;
+        }
+        delegateBindingStatement.Handler = handler;
 
         return true;
     }

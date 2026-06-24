@@ -1,0 +1,14 @@
+blueprint BP_DoorV1_Construction : Actor at "/Game/Generated/BP_DoorV1_Construction_Gen" {
+    @root
+    component Root: SceneComponent;
+
+    @attach(Root)
+    component Mesh: StaticMeshComponent;
+
+    var OpenAngle: float = 90.0;
+    var IsOpen: bool = false;
+
+    construction {
+        Mesh.SetRelativeRotation(Rotator(0.0, IsOpen ? OpenAngle : 0.0, 0.0));
+    }
+}

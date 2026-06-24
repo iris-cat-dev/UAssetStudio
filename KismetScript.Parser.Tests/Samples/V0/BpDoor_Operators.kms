@@ -1,0 +1,22 @@
+blueprint BP_Door_Operators : Actor at "/Game/Generated/BP_Door_Operators_Gen" {
+    var Flags: int = 1;
+
+    callable void ExerciseOperators(Value: int, ref Counter: int, out Result: int) {
+        var Local: int = Value * 2 / 1 % 3;
+        var Offset: int = Value - 1;
+        var Negative: int = -Value;
+        var Mask: int = (Value & 1) ^ 2 | 4;
+        var ShouldToggle: bool = !(Value != 0) || Value <= 10;
+
+        ++Counter;
+        Counter++;
+        --Counter;
+        Counter--;
+
+        Result = Local + Offset + Negative;
+        Result -= 1;
+        Result *= 2;
+        Result /= 1;
+        Result %= 3;
+    }
+}

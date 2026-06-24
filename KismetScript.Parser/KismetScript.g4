@@ -19,12 +19,14 @@ statement
 	| expression Semicolon
 	| ifStatement
 	| forStatement
+	| foreachStatement
 	| whileStatement
 	| breakStatement
 	| continueStatement
 	| returnStatement
 	| gotoStatement
 	| switchStatement
+	| delegateBindingStatement
 	;
 
 nullStatement
@@ -50,7 +52,7 @@ declarationStatement
 	;
 
 blueprintDeclarationStatement
-	: Blueprint Identifier ':' typeIdentifier At StringLiteral '{' blueprintMemberStatement* '}'
+	: decorator* Blueprint Identifier ':' typeIdentifier (Implements typeIdentifier (',' typeIdentifier)*)? At StringLiteral '{' blueprintMemberStatement* '}'
 	;
 
 blueprintMemberStatement
@@ -64,7 +66,12 @@ blueprintMemberStatement
 	;
 
 decorator
-	: '@' Identifier argumentList?
+	: '@' decoratorIdentifier argumentList?
+	;
+
+decoratorIdentifier
+	: Identifier
+	| Override
 	;
 
 componentDeclarationStatement
@@ -106,6 +113,8 @@ bpProcedureDeclarationStatement
 	: decorator* Event Identifier parameterList compoundStatement
 	| decorator* Callable typeIdentifier Identifier parameterList compoundStatement
 	| decorator* Pure typeIdentifier Identifier parameterList compoundStatement
+	| decorator* Construction compoundStatement
+	| decorator* Dispatcher Identifier parameterList Semicolon
 	;
 
 variableDeclarationStatement
@@ -198,7 +207,7 @@ expression
 	| '{' objectKeyValuePair (',' objectKeyValuePair)* ','? '}'			# objectLiteralExpression
 	| '[' (expression)? (',' expression)* (',')? ']'						# bracketInitializerListExpression
 	| New typeIdentifier? arraySignifier? '{' (expression)? (',' expression)* (',')? '}' # newExpression
-	| Identifier '[' expression ']'											# subscriptExpression
+	| expression '[' expression ']'											# subscriptExpression
 	| expression Op=('.'|'->') expression									# memberExpression
 	| '(' typeIdentifier ')' expression										# castExpression				// precedence 2
 	| Typeof '(' typeIdentifier ')'											# typeofExpression				// precedence 2
@@ -258,6 +267,10 @@ forStatement
 	: For '(' statement expression Semicolon expression ')' statement
 	;
 
+foreachStatement
+	: Foreach '(' Identifier ':' typeIdentifier In expression ')' statement
+	;
+
 whileStatement
 	: While expression statement
 	;
@@ -290,9 +303,13 @@ switchLabel
 	;
 
 typeIdentifier
-	: Identifier '<' typeIdentifier '>' arraySignifier?
+	: Identifier '<' typeIdentifier (',' typeIdentifier)* '>' arraySignifier?
 	| BuiltinTypeIdentifier arraySignifier?
 	| Identifier arraySignifier?
+	;
+
+delegateBindingStatement
+	: (Bind | Unbind) expression Op=('+=' | '-=') expression Semicolon
 	;
 
 ////////////////////
@@ -330,6 +347,9 @@ Event:		'event';
 Var:		'var';
 Callable:	'callable';
 Pure:		'pure';
+Construction: 'construction';
+Dispatcher:	'dispatcher';
+Implements:	'implements';
 
 // Modifiers
 Public:		'public';
@@ -346,6 +366,8 @@ Override:	'override';
 If:			'if';
 Else:		'else';
 For:		'for';
+Foreach:	'foreach';
+In:			'in';
 While:		'while';
 Break:		'break';
 Continue:	'continue';
@@ -354,6 +376,8 @@ Goto:		'goto';
 Switch:		'switch';
 Case:		'case';
 Default:	'default';
+Bind:		'bind';
+Unbind:		'unbind';
 
 Elipsis:	'...';
 Semicolon:	';';

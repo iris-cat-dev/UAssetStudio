@@ -1,0 +1,16 @@
+blueprint BP_DoorV1_Types : Actor at "/Game/Generated/BP_DoorV1_Types_Gen" {
+    var DoorArray: Array<Object<Actor>>;
+    var DoorSet: Set<string>;
+    var DoorMap: Map<string, int>;
+    var DoorClass: Class<Actor>;
+    var DoorMesh: SoftObject<StaticMesh>;
+    var DoorActorClass: SoftClass<Actor>;
+    var Interactable: Interface<BPI_Interactable>;
+    var DoorName: name = "Door";
+    var DoorLabel: text = "Generated Door";
+    var MissingActor: Object<Actor> = none;
+
+    pure bool HasActor() {
+        return MissingActor != none;
+    }
+}

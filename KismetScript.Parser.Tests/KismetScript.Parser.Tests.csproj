@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="Samples\*.kms" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Samples\**\*.kms" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

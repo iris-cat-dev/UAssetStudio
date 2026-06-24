@@ -131,7 +131,7 @@ public class BlueprintAuthoringParserTests
     [TestMethod]
     public void SampleFiles_AreBlueprintProfile()
     {
-        var sampleDir = Path.Combine(AppContext.BaseDirectory, "Samples");
+        var sampleDir = Path.Combine(AppContext.BaseDirectory, "Samples", "V0");
         var samples = Directory.GetFiles(sampleDir, "*.kms").Select(Path.GetFileName).ToArray();
 
         CollectionAssert.DoesNotContain(samples, "Ir_ExistingSyntax.kms");
@@ -192,7 +192,22 @@ public class BlueprintAuthoringParserTests
 
     internal static CompilationUnit ParseSample(string sampleName)
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "Samples", sampleName);
+        return ParseV0Sample(sampleName);
+    }
+
+    internal static CompilationUnit ParseV0Sample(string sampleName)
+    {
+        return ParseSample("V0", sampleName);
+    }
+
+    internal static CompilationUnit ParseV1Sample(string sampleName)
+    {
+        return ParseSample("V1", sampleName);
+    }
+
+    internal static CompilationUnit ParseSample(string languageVersion, string sampleName)
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "Samples", languageVersion, sampleName);
         return ParseText(File.ReadAllText(path));
     }
 

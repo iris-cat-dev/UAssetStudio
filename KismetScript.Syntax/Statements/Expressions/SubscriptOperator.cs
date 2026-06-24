@@ -2,7 +2,7 @@ namespace KismetScript.Syntax.Statements.Expressions;
 
 public class SubscriptOperator : Expression, IOperator
 {
-    public Identifier Operand { get; set; } = null!;
+    public Expression Operand { get; set; } = null!;
 
     public Expression Index { get; set; } = null!;
 

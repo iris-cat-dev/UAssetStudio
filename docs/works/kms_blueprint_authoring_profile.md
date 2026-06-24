@@ -155,6 +155,8 @@ Status as of 2026-06-23:
 - Done: `BlueprintProfileExporter` emits stable DTOs for allowed BP statements plus literal, identifier, call, member, binary, unary, conditional, array, initializer, object, subscript, cast, typeof, and new-expression syntax.
 - Done: UE plugin graph skeleton comments render exported KMS-BP statements and expressions instead of falling back to raw JSON kind names.
 - Done: UE plugin imports callable/pure procedure parameters, `out` parameters, and non-void returns as real function entry/result pins.
+- Done: CLI bridge accepts `--language-version 1` for `kms-bp validate/export`, and export JSON carries `languageVersion`.
+- Done: UE plugin accepts KMS-BP language version 1, imports `construction` into User Construction Script, creates dispatcher member variables/signature graphs, and traverses V1 `for`/`foreach`/`switch`/delegate statement JSON fields for generated node fallback.
 - Done: UE 5.6 packaging and commandlet fixture validation pass with `UnrealPlugins/KmsBlueprintImporter/Tests/BpDoor_FunctionSignature.kms-bp.json`.
 - Done: UE 5.6 packaging and commandlet validation pass with the syntax/expression fixture `UnrealPlugins/KmsBlueprintImporter/Tests/BpDoor_SyntaxExpressions.kms-bp.json`, producing `/Game/Generated/BP_Door_Syntax_Gen`.
 
@@ -162,9 +164,11 @@ Current validation:
 
 ```bash
 dotnet test KismetScript.Parser.Tests/KismetScript.Parser.Tests.csproj
+dotnet run --project UAssetStudio.Cli -- kms-bp validate KismetScript.Parser.Tests/Samples/V1/BpDoorV1_Full.kms --language-version 1
+dotnet run --project UAssetStudio.Cli -- kms-bp export KismetScript.Parser.Tests/Samples/V1/BpDoorV1_Full.kms --language-version 1 --out /tmp/BpDoorV1.kms-bp.json
 ```
 
-Result at time of writing: 24 tests passing.
+Result at time of writing: parser/export tests and CLI V1 validation should pass before the next UE packaging run.
 
 ## CLI Bridge JSON Export
 
@@ -280,7 +284,7 @@ Semantic tests cover:
 
 ## Next Steps
 
-1. UE plugin MVP is implemented under `UnrealPlugins/KmsBlueprintImporter`: it consumes `kms-bp-export-v1`, creates or updates Blueprint assets, builds SCS components, imports variables, creates graph skeleton comments, generates function signatures, compiles, and saves.
-2. Next UE pass: generate real K2 nodes from exported statements/expressions; current coverage preserves them in imported graph skeleton comments.
+1. UE plugin MVP is implemented under `UnrealPlugins/KmsBlueprintImporter`: it consumes `kms-bp-export-v1`, creates or updates Blueprint assets, builds SCS components, imports variables, creates graph skeleton comments/fallback nodes, generates function signatures, imports V1 construction graphs, imports V1 dispatcher signatures, compiles, and saves.
+2. Next UE pass: finish real K2 nodes for the remaining V1 core surface (`for`/`foreach`/`switch`, delegate bind/unbind/broadcast, named/out/ref calls, replication/RPC metadata).
 3. Add an Unreal automation test that imports the Door fixture JSON and verifies the generated Blueprint structure.
 4. Add a CLI-facing `--profile auto|ir|bp` option for existing `compile` workflows so BP authoring files are routed away from the bytecode compiler.

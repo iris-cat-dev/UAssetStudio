@@ -1,0 +1,42 @@
+from "/Game/Common/DoorTypes" import {
+    struct DoorConfig {
+        int Mode;
+    }
+
+    enum DoorState {
+        Closed,
+        Open
+    };
+}
+
+blueprint BP_Door_Metadata : Actor at "/Game/Generated/BP_Door_Metadata_Gen" {
+    @root
+    @tooltip("Scene root")
+    component Root: SceneComponent;
+
+    @attach(Root)
+    @tooltip("Door mesh")
+    component Mesh: StaticMeshComponent;
+
+    @editable
+    @category("Door")
+    @tooltip("Door open angle")
+    var OpenAngle: float = 90.0;
+
+    @tooltip("Begin play entry")
+    event BeginPlay() {
+        print("Door ready");
+    }
+
+    @category("Door")
+    @tooltip("Toggle door")
+    callable void Toggle(ref Delta: float) {
+        OpenAngle += Delta;
+    }
+
+    @category("Door")
+    @tooltip("Door wide open predicate")
+    pure bool IsWideOpen() {
+        return OpenAngle >= 90.0;
+    }
+}

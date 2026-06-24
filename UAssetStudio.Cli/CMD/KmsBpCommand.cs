@@ -30,23 +30,26 @@ internal static class KmsBpCommandBuilder
     private static Command BuildValidateCommand(Option<bool> json)
     {
         var scriptArg = new Argument<string>("script", "Path to KMS-BP .kms source");
+        var languageVersionOpt = new Option<int>(new[] { "--language-version" }, () => 0, "KMS-BP language version: 0 or 1");
         var command = new Command("validate", "Validate a KMS-BP source file")
         {
-            scriptArg
+            scriptArg,
+            languageVersionOpt
         };
 
         command.SetHandler((InvocationContext ctx) =>
         {
             var scriptPath = ctx.ParseResult.GetValueForArgument(scriptArg);
+            var languageVersion = ParseLanguageVersion(ctx.ParseResult.GetValueForOption(languageVersionOpt));
             var asJson = ctx.ParseResult.GetValueForOption(json);
 
             ctx.ExitCode = CliOutput.Run("kms-bp validate", asJson,
-                new { script = scriptPath },
+                new { script = scriptPath, languageVersion = ToLanguageVersionString(languageVersion) },
                 result =>
                 {
-                    var (unit, diagnostics) = LoadAndCheck(scriptPath, result);
+                    var (unit, diagnostics) = LoadAndCheck(scriptPath, result, languageVersion);
                     var model = BlueprintProfileNormalizer.Normalize(unit);
-                    PopulateValidationData(result, model, diagnostics);
+                    PopulateValidationData(result, model, diagnostics, languageVersion);
 
                     if (diagnostics.Count > 0)
                     {
@@ -66,25 +69,28 @@ internal static class KmsBpCommandBuilder
     {
         var scriptArg = new Argument<string>("script", "Path to KMS-BP .kms source");
         var outputOpt = new Option<string?>(new[] { "--out", "-o" }, "Output JSON file; default is <script>.kms-bp.json");
+        var languageVersionOpt = new Option<int>(new[] { "--language-version" }, () => 0, "KMS-BP language version: 0 or 1");
         var command = new Command("export", "Export KMS-BP source to stable bridge JSON")
         {
             scriptArg,
-            outputOpt
+            outputOpt,
+            languageVersionOpt
         };
 
         command.SetHandler((InvocationContext ctx) =>
         {
             var scriptPath = ctx.ParseResult.GetValueForArgument(scriptArg);
             var outputPath = ctx.ParseResult.GetValueForOption(outputOpt);
+            var languageVersion = ParseLanguageVersion(ctx.ParseResult.GetValueForOption(languageVersionOpt));
             var asJson = ctx.ParseResult.GetValueForOption(json);
 
             ctx.ExitCode = CliOutput.Run("kms-bp export", asJson,
-                new { script = scriptPath, output = outputPath },
+                new { script = scriptPath, output = outputPath, languageVersion = ToLanguageVersionString(languageVersion) },
                 result =>
                 {
-                    var (unit, diagnostics) = LoadAndCheck(scriptPath, result);
+                    var (unit, diagnostics) = LoadAndCheck(scriptPath, result, languageVersion);
                     var model = BlueprintProfileNormalizer.Normalize(unit);
-                    PopulateValidationData(result, model, diagnostics);
+                    PopulateValidationData(result, model, diagnostics, languageVersion);
 
                     if (diagnostics.Count > 0)
                     {
@@ -99,7 +105,8 @@ internal static class KmsBpCommandBuilder
                     var document = BlueprintProfileExporter.Export(
                         unit,
                         Path.GetFullPath(scriptPath),
-                        ComputeSha256(scriptPath));
+                        ComputeSha256(scriptPath),
+                        languageVersion);
                     var jsonText = JsonSerializer.Serialize(document, ExportJsonOptions);
                     File.WriteAllText(resolvedOutput, jsonText);
 
@@ -107,6 +114,7 @@ internal static class KmsBpCommandBuilder
                     result.Data = new
                     {
                         schemaVersion = document.SchemaVersion,
+                        languageVersion = document.LanguageVersion,
                         blueprintCount = document.Blueprints.Count,
                         blueprints = document.Blueprints.Select(x => new
                         {
@@ -126,7 +134,10 @@ internal static class KmsBpCommandBuilder
         return command;
     }
 
-    private static (CompilationUnit Unit, IReadOnlyList<BlueprintProfileDiagnostic> Diagnostics) LoadAndCheck(string scriptPath, CommandResult result)
+    private static (CompilationUnit Unit, IReadOnlyList<BlueprintProfileDiagnostic> Diagnostics) LoadAndCheck(
+        string scriptPath,
+        CommandResult result,
+        KmsBpLanguageVersion languageVersion)
     {
         CliOutput.RequireFile(scriptPath, "KMS-BP source");
 
@@ -147,7 +158,7 @@ internal static class KmsBpCommandBuilder
                 "Input is not a KMS-BP source. Expected a `blueprint ...` declaration or legacy `[Blueprint] class` declaration.");
         }
 
-        var diagnostics = BlueprintProfileSemanticChecker.Check(unit);
+        var diagnostics = BlueprintProfileSemanticChecker.Check(unit, languageVersion);
         foreach (var diagnostic in diagnostics)
         {
             result.Line($"{diagnostic.Code}: {diagnostic.Message}");
@@ -159,11 +170,13 @@ internal static class KmsBpCommandBuilder
     private static void PopulateValidationData(
         CommandResult result,
         BlueprintProfileModel model,
-        IReadOnlyList<BlueprintProfileDiagnostic> diagnostics)
+        IReadOnlyList<BlueprintProfileDiagnostic> diagnostics,
+        KmsBpLanguageVersion languageVersion)
     {
         result.Data = new
         {
             schemaVersion = BlueprintProfileExporter.SchemaVersion,
+            languageVersion = ToLanguageVersionString(languageVersion),
             blueprintCount = model.Blueprints.Count,
             blueprints = model.Blueprints.Select(x => new
             {
@@ -182,6 +195,21 @@ internal static class KmsBpCommandBuilder
                 source = ToSourceDto(x.Node)
             })
         };
+    }
+
+    private static KmsBpLanguageVersion ParseLanguageVersion(int languageVersion)
+    {
+        return languageVersion switch
+        {
+            0 => KmsBpLanguageVersion.V0,
+            1 => KmsBpLanguageVersion.V1,
+            _ => throw new CliException("UnsupportedLanguageVersion", $"Unsupported KMS-BP language version '{languageVersion}'. Expected 0 or 1.")
+        };
+    }
+
+    private static string ToLanguageVersionString(KmsBpLanguageVersion languageVersion)
+    {
+        return languageVersion == KmsBpLanguageVersion.V1 ? "1" : "0";
     }
 
     private static object? ToSourceDto(SyntaxNode node)

@@ -75,6 +75,38 @@ public class BlueprintProfileExporterTests
         Assert.AreEqual("conditional", returnValue?.Kind);
     }
 
+    [TestMethod]
+    public void Exporter_EmitsV1StatementKinds()
+    {
+        var full = BlueprintProfileExporter.Export(
+            BlueprintAuthoringParserTests.ParseV1Sample("BpDoorV1_Full.kms"),
+            "/tmp/BP_DoorV1.kms",
+            "v1",
+            KmsBpLanguageVersion.V1);
+        var fullBlueprint = full.Blueprints.Single();
+
+        Assert.AreEqual("1", full.LanguageVersion);
+        Assert.IsTrue(fullBlueprint.Procedures.Any(x => x.Kind == "construction"));
+        Assert.IsTrue(fullBlueprint.Procedures.Any(x => x.Kind == "dispatcher"));
+
+        var beginPlayStatements = FlattenStatements(fullBlueprint.Procedures.Single(x => x.Name == "BeginPlay").Body!).Select(x => x.Kind).ToArray();
+        CollectionAssert.Contains(beginPlayStatements, "bind");
+
+        var controlFlow = BlueprintProfileExporter.Export(
+            BlueprintAuthoringParserTests.ParseV1Sample("BpDoorV1_ControlFlow.kms"),
+            "/tmp/BP_DoorV1_ControlFlow.kms",
+            "v1-control",
+            KmsBpLanguageVersion.V1);
+        var flowKinds = FlattenStatements(controlFlow.Blueprints.Single().Procedures.Single(x => x.Name == "ExerciseFlow").Body!)
+            .Select(x => x.Kind)
+            .Distinct()
+            .ToArray();
+
+        CollectionAssert.Contains(flowKinds, "for");
+        CollectionAssert.Contains(flowKinds, "foreach");
+        CollectionAssert.Contains(flowKinds, "switch");
+    }
+
     private static IEnumerable<KmsBpStatementDto> FlattenStatements(KmsBpStatementDto statement)
     {
         yield return statement;
@@ -99,6 +131,15 @@ public class BlueprintProfileExporterTests
             foreach (var child in FlattenStatements(statement.Body))
                 yield return child;
         }
+
+        if (statement.InitializerStatement != null)
+        {
+            foreach (var child in FlattenStatements(statement.InitializerStatement))
+                yield return child;
+        }
+
+        foreach (var child in statement.Cases.SelectMany(@case => FlattenStatements(@case.Body)))
+            yield return child;
     }
 
     private static IEnumerable<KmsBpExpressionDto> FlattenExpressions(KmsBpStatementDto statement)
@@ -108,11 +149,19 @@ public class BlueprintProfileExporterTests
             statement.Initializer,
             statement.Expression,
             statement.Condition,
-            statement.Value
+            statement.Value,
+            statement.After,
+            statement.Collection,
+            statement.Target,
+            statement.Handler,
+            statement.SwitchOn
         }.Where(x => x != null).SelectMany(x => FlattenExpressions(x!)))
         {
             yield return expression;
         }
+
+        foreach (var expression in statement.Cases.Select(@case => @case.Condition).Where(x => x != null).SelectMany(x => FlattenExpressions(x!)))
+            yield return expression;
 
         foreach (var child in FlattenStatements(statement).Where(x => !ReferenceEquals(x, statement)))
         {

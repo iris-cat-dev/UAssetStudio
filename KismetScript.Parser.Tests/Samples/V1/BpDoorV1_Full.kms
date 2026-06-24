@@ -1,0 +1,70 @@
+from "/Game/Common/DoorTypes" import {
+    enum DoorState {
+        Closed,
+        Opening,
+        Open
+    };
+}
+
+@displayName("Generated Door")
+blueprint BP_DoorV1 : Actor implements BPI_Interactable at "/Game/Generated/BP_DoorV1_Gen" {
+    @root
+    component Root: SceneComponent;
+
+    @attach(Root, socket = "DoorSocket")
+    @tag("DoorVisual")
+    component Mesh: StaticMeshComponent {
+        StaticMesh = asset<StaticMesh>("/Game/Props/SM_Door.SM_Door");
+        RelativeRotation = Rotator(0.0, 0.0, 0.0);
+    }
+
+    @editable
+    @category("Door")
+    @tooltip("Target open angle in degrees")
+    @clamp(0.0, 180.0)
+    @ui(0.0, 120.0)
+    var OpenAngle: float = 90.0;
+
+    @replicated
+    @repNotify(OnRep_IsOpen)
+    var IsOpen: bool = false;
+
+    dispatcher OnDoorToggled(IsOpen: bool);
+
+    construction {
+        Mesh.SetRelativeRotation(Rotator(0.0, IsOpen ? OpenAngle : 0.0, 0.0));
+    }
+
+    event BeginPlay() {
+        KismetSystemLibrary.PrintString(self, "Door ready");
+        bind OnDoorToggled += HandleDoorToggled;
+    }
+
+    callable void Toggle() {
+        ServerSetOpen(!IsOpen);
+    }
+
+    @rpc(server, reliable)
+    callable void ServerSetOpen(NewValue: bool) {
+        SetOpen(NewValue);
+    }
+
+    callable void SetOpen(NewValue: bool) {
+        IsOpen = NewValue;
+        Mesh.SetRelativeRotation(Rotator(0.0, IsOpen ? OpenAngle : 0.0, 0.0));
+        OnDoorToggled.Broadcast(IsOpen);
+    }
+
+    event OnRep_IsOpen() {
+        Mesh.SetRelativeRotation(Rotator(0.0, IsOpen ? OpenAngle : 0.0, 0.0));
+    }
+
+    @override
+    pure bool CanInteract(Actor Instigator) {
+        return Instigator != none;
+    }
+
+    callable void HandleDoorToggled(NewValue: bool) {
+        print("door toggled");
+    }
+}

@@ -1,6 +1,7 @@
 {
   "schemaVersion": "kms-bp-export-v1",
-  "sourcePath": "D:\\Project\\UAssetStudio\\KismetScript.Parser.Tests\\Samples\\BpDoor_SyntaxExpressions.kms",
+  "languageVersion": "0",
+  "sourcePath": "KismetScript.Parser.Tests/Samples/V0/BpDoor_SyntaxExpressions.kms",
   "sourceSha256": "ffd5748736d528cc5c673a714468c30ca4b98e256cc8421c93ed4322b5bf6163",
   "blueprints": [
     {
@@ -85,7 +86,6 @@
             {
               "name": "Value",
               "type": "int",
-              "modifier": "0",
               "source": {
                 "line": 6,
                 "column": 27
@@ -146,6 +146,7 @@
                   }
                 },
                 "statements": [],
+                "cases": [],
                 "source": {
                   "line": 7,
                   "column": 8
@@ -207,6 +208,7 @@
                   }
                 },
                 "statements": [],
+                "cases": [],
                 "source": {
                   "line": 8,
                   "column": 8
@@ -283,6 +285,7 @@
                   }
                 },
                 "statements": [],
+                "cases": [],
                 "source": {
                   "line": 9,
                   "column": 8
@@ -317,6 +320,7 @@
                   }
                 },
                 "statements": [],
+                "cases": [],
                 "source": {
                   "line": 10,
                   "column": 8
@@ -339,6 +343,7 @@
                   }
                 },
                 "statements": [],
+                "cases": [],
                 "source": {
                   "line": 11,
                   "column": 8
@@ -431,6 +436,7 @@
                   }
                 },
                 "statements": [],
+                "cases": [],
                 "source": {
                   "line": 13,
                   "column": 8
@@ -531,12 +537,14 @@
                         }
                       },
                       "statements": [],
+                      "cases": [],
                       "source": {
                         "line": 15,
                         "column": 12
                       }
                     }
                   ],
+                  "cases": [],
                   "source": {
                     "line": 14,
                     "column": 39
@@ -574,18 +582,21 @@
                         }
                       },
                       "statements": [],
+                      "cases": [],
                       "source": {
                         "line": 17,
                         "column": 12
                       }
                     }
                   ],
+                  "cases": [],
                   "source": {
                     "line": 16,
                     "column": 15
                   }
                 },
                 "statements": [],
+                "cases": [],
                 "source": {
                   "line": 14,
                   "column": 8
@@ -673,6 +684,7 @@
                         }
                       },
                       "statements": [],
+                      "cases": [],
                       "source": {
                         "line": 21,
                         "column": 12
@@ -723,18 +735,21 @@
                           {
                             "kind": "continue",
                             "statements": [],
+                            "cases": [],
                             "source": {
                               "line": 23,
                               "column": 16
                             }
                           }
                         ],
+                        "cases": [],
                         "source": {
                           "line": 22,
                           "column": 29
                         }
                       },
                       "statements": [],
+                      "cases": [],
                       "source": {
                         "line": 22,
                         "column": 12
@@ -743,24 +758,28 @@
                     {
                       "kind": "break",
                       "statements": [],
+                      "cases": [],
                       "source": {
                         "line": 25,
                         "column": 12
                       }
                     }
                   ],
+                  "cases": [],
                   "source": {
                     "line": 20,
                     "column": 27
                   }
                 },
                 "statements": [],
+                "cases": [],
                 "source": {
                   "line": 20,
                   "column": 8
                 }
               }
             ],
+            "cases": [],
             "source": {
               "line": 6,
               "column": 56
@@ -855,12 +874,14 @@
                   }
                 },
                 "statements": [],
+                "cases": [],
                 "source": {
                   "line": 30,
                   "column": 8
                 }
               }
             ],
+            "cases": [],
             "source": {
               "line": 29,
               "column": 27

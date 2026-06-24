@@ -1,0 +1,37 @@
+from "/Game/Common/DoorTypes" import {
+    enum DoorState {
+        Closed,
+        Opening,
+        Open
+    };
+}
+
+blueprint BP_DoorV1_ControlFlow : Actor at "/Game/Generated/BP_DoorV1_ControlFlow_Gen" {
+    var Doors: Array<BP_DoorV1_ControlFlow>;
+    var State: DoorState = DoorState.Closed;
+
+    callable void ExerciseFlow() {
+        for (var Index: int = 0; Index < Doors.Length; Index += 1) {
+            Doors[Index].Toggle();
+        }
+
+        foreach (Door: BP_DoorV1_ControlFlow in Doors) {
+            Door.Toggle();
+        }
+
+        switch (State) {
+            case DoorState.Closed:
+                Toggle();
+                break;
+            case DoorState.Open:
+                print("already open");
+                break;
+            default:
+                print("unknown");
+        }
+    }
+
+    callable void Toggle() {
+        print("toggle");
+    }
+}

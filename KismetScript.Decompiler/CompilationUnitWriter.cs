@@ -263,6 +263,14 @@ public class CompilationUnitWriter
                         Visit(procedureDeclaration.Identifier);
                         WriteBpParameters(procedureDeclaration.Parameters);
                         break;
+                    case BlueprintProcedureKind.Construction:
+                        WriteWithSeperator("construction");
+                        break;
+                    case BlueprintProcedureKind.Dispatcher:
+                        WriteWithSeperator("dispatcher");
+                        Visit(procedureDeclaration.Identifier);
+                        WriteBpParameters(procedureDeclaration.Parameters);
+                        break;
                     default:
                         Visit(procedureDeclaration.ReturnType);
                         Write(" ");
@@ -705,6 +713,23 @@ public class CompilationUnitWriter
         public override void Visit(TypeIdentifier typeIdentifier)
         {
             Write(typeIdentifier.Text);
+            if (typeIdentifier.TypeParameters.Count > 0)
+            {
+                Write("<");
+                for (int i = 0; i < typeIdentifier.TypeParameters.Count; i++)
+                {
+                    Visit(typeIdentifier.TypeParameters[i]);
+                    if (i != typeIdentifier.TypeParameters.Count - 1)
+                        Write(", ");
+                }
+                Write(">");
+            }
+            else if (typeIdentifier.TypeParameter != null)
+            {
+                Write("<");
+                Visit(typeIdentifier.TypeParameter);
+                Write(">");
+            }
         }
 
         // Literals

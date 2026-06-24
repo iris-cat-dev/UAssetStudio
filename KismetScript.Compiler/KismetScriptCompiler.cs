@@ -658,7 +658,11 @@ public partial class KismetScriptCompiler
     private static string GetFullTypeHintFromTypeIdentifier(TypeIdentifier typeDecl)
     {
         var text = typeDecl.Text ?? "Object";
-        if (typeDecl.TypeParameter != null)
+        if (typeDecl.TypeParameters.Count > 0)
+        {
+            text = $"{text}<{string.Join(", ", typeDecl.TypeParameters.Select(GetFullTypeHintFromTypeIdentifier))}>";
+        }
+        else if (typeDecl.TypeParameter != null)
         {
             text = $"{text}<{GetFullTypeHintFromTypeIdentifier(typeDecl.TypeParameter)}>";
         }

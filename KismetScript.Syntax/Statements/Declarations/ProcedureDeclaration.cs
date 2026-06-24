@@ -21,7 +21,9 @@ public enum BlueprintProcedureKind
     Ordinary,
     Event,
     Callable,
-    Pure
+    Pure,
+    Construction,
+    Dispatcher
 }
 
 public class ProcedureDeclaration : Declaration, IBlockStatement

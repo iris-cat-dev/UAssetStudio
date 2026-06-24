@@ -8,7 +8,9 @@ public class TypeIdentifier : Identifier
 
     public TypeIdentifier? TypeParameter { get; set; }
 
-    public bool IsConstructedType => TypeParameter != null;
+    public List<TypeIdentifier> TypeParameters { get; init; } = new();
+
+    public bool IsConstructedType => TypeParameters.Count > 0 || TypeParameter != null;
 
     public TypeIdentifier() : base(ValueKind.Type)
     {

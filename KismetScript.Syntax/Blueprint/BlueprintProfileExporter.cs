@@ -12,12 +12,17 @@ public static class BlueprintProfileExporter
 {
     public const string SchemaVersion = "kms-bp-export-v1";
 
-    public static KmsBpExportDocument Export(CompilationUnit compilationUnit, string? sourcePath = null, string? sourceSha256 = null)
+    public static KmsBpExportDocument Export(
+        CompilationUnit compilationUnit,
+        string? sourcePath = null,
+        string? sourceSha256 = null,
+        KmsBpLanguageVersion languageVersion = KmsBpLanguageVersion.V0)
     {
         var model = BlueprintProfileNormalizer.Normalize(compilationUnit);
         return new KmsBpExportDocument
         {
             SchemaVersion = SchemaVersion,
+            LanguageVersion = languageVersion == KmsBpLanguageVersion.V1 ? "1" : "0",
             SourcePath = sourcePath,
             SourceSha256 = sourceSha256,
             Blueprints = model.Blueprints.Select(ExportBlueprint).ToList()
@@ -100,9 +105,25 @@ public static class BlueprintProfileExporter
         {
             Name = parameter.Identifier.Text,
             Type = FormatType(parameter.Type),
-            Modifier = parameter.Modifier == ParameterModifier.None ? null : parameter.Modifier.ToString().ToLowerInvariant(),
+            Modifier = FormatParameterModifier(parameter.Modifier),
             Source = ExportSource(parameter)
         };
+    }
+
+    private static string? FormatParameterModifier(ParameterModifier modifier)
+    {
+        if (modifier == ParameterModifier.None)
+            return null;
+
+        var parts = new List<string>();
+        if (modifier.HasFlag(ParameterModifier.Const))
+            parts.Add("const");
+        if (modifier.HasFlag(ParameterModifier.Ref))
+            parts.Add("ref");
+        if (modifier.HasFlag(ParameterModifier.Out))
+            parts.Add("out");
+
+        return parts.Count == 0 ? null : string.Join(" ", parts);
     }
 
     private static KmsBpStatementDto ExportStatement(Statement statement)
@@ -138,6 +159,38 @@ public static class BlueprintProfileExporter
                 Body = ExportStatement(whileStatement.Body),
                 Source = ExportSource(statement)
             },
+            ForStatement forStatement => new KmsBpStatementDto
+            {
+                Kind = "for",
+                InitializerStatement = ExportStatement(forStatement.Initializer),
+                Condition = ExportExpression(forStatement.Condition),
+                After = ExportExpression(forStatement.AfterLoop),
+                Body = ExportStatement(forStatement.Body),
+                Source = ExportSource(statement)
+            },
+            ForeachStatement foreachStatement => new KmsBpStatementDto
+            {
+                Kind = "foreach",
+                Name = foreachStatement.Identifier.Text,
+                Type = FormatType(foreachStatement.Type),
+                Collection = ExportExpression(foreachStatement.Collection),
+                Body = ExportStatement(foreachStatement.Body),
+                Source = ExportSource(statement)
+            },
+            SwitchStatement switchStatement => new KmsBpStatementDto
+            {
+                Kind = "switch",
+                SwitchOn = ExportExpression(switchStatement.SwitchOn),
+                Cases = switchStatement.Labels.Select(ExportSwitchCase).ToList(),
+                Source = ExportSource(statement)
+            },
+            DelegateBindingStatement delegateBinding => new KmsBpStatementDto
+            {
+                Kind = delegateBinding.IsBind ? "bind" : "unbind",
+                Target = ExportExpression(delegateBinding.Target),
+                Handler = ExportExpression(delegateBinding.Handler),
+                Source = ExportSource(statement)
+            },
             BreakStatement => new KmsBpStatementDto { Kind = "break", Source = ExportSource(statement) },
             ContinueStatement => new KmsBpStatementDto { Kind = "continue", Source = ExportSource(statement) },
             ReturnStatement returnStatement => new KmsBpStatementDto
@@ -157,6 +210,22 @@ public static class BlueprintProfileExporter
                 Kind = statement.GetType().Name,
                 Source = ExportSource(statement)
             }
+        };
+    }
+
+    private static KmsBpSwitchCaseDto ExportSwitchCase(SwitchLabel label)
+    {
+        return new KmsBpSwitchCaseDto
+        {
+            IsDefault = label is DefaultSwitchLabel,
+            Condition = label is ConditionSwitchLabel condition ? ExportExpression(condition.Condition) : null,
+            Body = new KmsBpStatementDto
+            {
+                Kind = "block",
+                Statements = label.Body.Select(ExportStatement).ToList(),
+                Source = ExportSource(label)
+            },
+            Source = ExportSource(label)
         };
     }
 
@@ -282,9 +351,12 @@ public static class BlueprintProfileExporter
 
     private static string FormatType(TypeIdentifier type)
     {
-        return type.TypeParameter == null
-            ? type.Text
-            : $"{type.Text}<{FormatType(type.TypeParameter)}>";
+        if (type.TypeParameters.Count == 0)
+            return type.TypeParameter == null
+                ? type.Text
+                : $"{type.Text}<{FormatType(type.TypeParameter)}>";
+
+        return $"{type.Text}<{string.Join(", ", type.TypeParameters.Select(FormatType))}>";
     }
 
     private static KmsBpSourceDto? ExportSource(SyntaxNode node)
@@ -356,6 +428,7 @@ public static class BlueprintProfileExporter
 public sealed class KmsBpExportDocument
 {
     public string SchemaVersion { get; set; } = BlueprintProfileExporter.SchemaVersion;
+    public string LanguageVersion { get; set; } = "0";
     public string? SourcePath { get; set; }
     public string? SourceSha256 { get; set; }
     public List<KmsBpBlueprintDto> Blueprints { get; set; } = new();
@@ -425,14 +498,29 @@ public sealed class KmsBpStatementDto
     public string Kind { get; set; } = string.Empty;
     public string? Name { get; set; }
     public string? Type { get; set; }
+    public KmsBpStatementDto? InitializerStatement { get; set; }
     public KmsBpExpressionDto? Initializer { get; set; }
     public KmsBpExpressionDto? Expression { get; set; }
     public KmsBpExpressionDto? Condition { get; set; }
+    public KmsBpExpressionDto? After { get; set; }
+    public KmsBpExpressionDto? Collection { get; set; }
+    public KmsBpExpressionDto? Target { get; set; }
+    public KmsBpExpressionDto? Handler { get; set; }
+    public KmsBpExpressionDto? SwitchOn { get; set; }
     public KmsBpStatementDto? Then { get; set; }
     public KmsBpStatementDto? Else { get; set; }
     public KmsBpStatementDto? Body { get; set; }
     public KmsBpExpressionDto? Value { get; set; }
     public List<KmsBpStatementDto> Statements { get; set; } = new();
+    public List<KmsBpSwitchCaseDto> Cases { get; set; } = new();
+    public KmsBpSourceDto? Source { get; set; }
+}
+
+public sealed class KmsBpSwitchCaseDto
+{
+    public bool IsDefault { get; set; }
+    public KmsBpExpressionDto? Condition { get; set; }
+    public KmsBpStatementDto Body { get; set; } = new() { Kind = "block" };
     public KmsBpSourceDto? Source { get; set; }
 }
 
