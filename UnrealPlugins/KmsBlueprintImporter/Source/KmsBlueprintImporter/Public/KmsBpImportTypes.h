@@ -19,6 +19,12 @@ struct KMSBLUEPRINTIMPORTER_API FKmsBpImportOptions
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "KMS Blueprint")
     bool bCreateProcedureGraphs = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "KMS Blueprint")
+    bool bFormatGraphs = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "KMS Blueprint")
+    bool bRecreateExistingBlueprint = false;
 };
 
 USTRUCT(BlueprintType)

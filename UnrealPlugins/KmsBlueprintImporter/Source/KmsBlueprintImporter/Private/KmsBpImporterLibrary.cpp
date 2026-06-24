@@ -17,6 +17,7 @@
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_FunctionResult.h"
 #include "K2Node_CallFunction.h"
+#include "K2Node_Event.h"
 #include "K2Node_IfThenElse.h"
 #include "K2Node_KmsGeneratedNode.h"
 #include "K2Node_MacroInstance.h"
@@ -30,6 +31,7 @@
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
+#include "ObjectTools.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "UObject/Package.h"
@@ -965,6 +967,34 @@ static UEdGraphPin* FindExecPinByName(UEdGraphNode* Node, FName PinName, EEdGrap
     return nullptr;
 }
 
+static UEdGraphPin* FindExecPinByDisplayText(UEdGraphNode* Node, const FString& PinText, EEdGraphPinDirection Direction)
+{
+    if (Node == nullptr)
+    {
+        return nullptr;
+    }
+
+    for (UEdGraphPin* Pin : Node->Pins)
+    {
+        if (Pin == nullptr || Pin->Direction != Direction || Pin->PinType.PinCategory != UEdGraphSchema_K2::PC_Exec)
+        {
+            continue;
+        }
+
+        const FString PinName = Pin->PinName.ToString();
+        const FString DisplayName = Pin->GetDisplayName().ToString();
+        if (PinName.Equals(PinText, ESearchCase::IgnoreCase)
+            || DisplayName.Equals(PinText, ESearchCase::IgnoreCase)
+            || PinName.Contains(PinText, ESearchCase::IgnoreCase)
+            || DisplayName.Contains(PinText, ESearchCase::IgnoreCase))
+        {
+            return Pin;
+        }
+    }
+
+    return nullptr;
+}
+
 static bool TryConnectPins(const FKmsBpNativeGenContext& Context, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin)
 {
     return Context.K2Schema != nullptr
@@ -1833,11 +1863,19 @@ static bool GenerateWhileStatement(
 
     ConnectExpressionToPin(Context, GetObjectField(Statement, TEXT("condition")), FindPinByName(WhileNode, TEXT("Condition")), Depth + 1);
 
-    UEdGraphPin* BodyEntry = FindExecPinByName(WhileNode, TEXT("Loop Body"), EGPD_Output);
+    UEdGraphPin* BodyEntry = FindExecPinByDisplayText(WhileNode, TEXT("Loop Body"), EGPD_Output);
+    if (BodyEntry == nullptr)
+    {
+        BodyEntry = FindExecPinByDisplayText(WhileNode, TEXT("Loop"), EGPD_Output);
+    }
     int32 BodyY = NextY + 180;
     GenerateStatementNodes(Context, GetObjectField(Statement, TEXT("body")), MakeExecTails(BodyEntry), Depth + 1, BodyY);
 
-    UEdGraphPin* CompletedPin = FindExecPinByName(WhileNode, TEXT("Completed"), EGPD_Output);
+    UEdGraphPin* CompletedPin = FindExecPinByDisplayText(WhileNode, TEXT("Completed"), EGPD_Output);
+    if (CompletedPin == nullptr)
+    {
+        CompletedPin = FindExecPinByDisplayText(WhileNode, TEXT("Complete"), EGPD_Output);
+    }
     OutExecTails = MakeExecTails(CompletedPin != nullptr ? CompletedPin : BodyEntry);
     NextY = BodyY + 40;
     return true;
@@ -1891,11 +1929,10 @@ static TArray<UEdGraphPin*> GenerateStatementNodes(
         const TSharedPtr<FJsonObject> Initializer = GetObjectField(Statement, TEXT("initializer"));
         if (!ShouldGenerateNativeVariableInitializer(Initializer))
         {
-            UK2Node_KmsGeneratedNode* Node = SpawnGeneratedKmsNode(Context.Graph, ExecTails.Num() > 0, TEXT("var"), StatementToText(Statement), 260 + Depth * 240, NextY);
-            TArray<UEdGraphPin*> OutExecTails = ConnectExecTailsToGeneratedNode(Context, ExecTails, Node);
+            SpawnGeneratedKmsNode(Context.Graph, false, TEXT("var"), StatementToText(Statement), 260 + Depth * 240, NextY);
             MaterializeExpressionNodes(Context.Graph, Initializer, Depth + 1, Context.NextExpressionY);
             NextY += 150;
-            return OutExecTails;
+            return ExecTails;
         }
 
         UK2Node_VariableSet* SetNode = SpawnVariableSetNode(Context, GetStringField(Statement, TEXT("name")), 260 + Depth * 240, NextY);
@@ -1931,8 +1968,7 @@ static TArray<UEdGraphPin*> GenerateStatementNodes(
         return GenerateReturnStatement(Context, Statement, ExecTails, Depth, NextY);
     }
 
-    UK2Node_KmsGeneratedNode* Node = SpawnGeneratedKmsNode(Context.Graph, ExecTails.Num() > 0, Kind.IsEmpty() ? TEXT("statement") : Kind, StatementToText(Statement), 260 + Depth * 240, NextY);
-    TArray<UEdGraphPin*> GeneratedTails = ConnectExecTailsToGeneratedNode(Context, ExecTails, Node);
+    SpawnGeneratedKmsNode(Context.Graph, false, Kind.IsEmpty() ? TEXT("statement") : Kind, StatementToText(Statement), 260 + Depth * 240, NextY);
     static const TCHAR* FallbackExpressionFields[] =
     {
         TEXT("condition"),
@@ -1947,9 +1983,9 @@ static TArray<UEdGraphPin*> GenerateStatementNodes(
         MaterializeExpressionNodes(Context.Graph, GetObjectField(Statement, FieldName), Depth + 1, Context.NextExpressionY);
     }
 
-    UEdGraphPin* FallbackTail = GeneratedTails.Num() > 0 ? GeneratedTails[0] : nullptr;
-    MaterializeStatementNodes(Context.Graph, GetObjectField(Statement, TEXT("initializerStatement")), GeneratedTails.Num() > 0, FallbackTail, Depth + 1, NextY);
-    MaterializeStatementNodes(Context.Graph, GetObjectField(Statement, TEXT("body")), GeneratedTails.Num() > 0, FallbackTail, Depth + 1, NextY);
+    UEdGraphPin* FallbackTail = nullptr;
+    MaterializeStatementNodes(Context.Graph, GetObjectField(Statement, TEXT("initializerStatement")), false, FallbackTail, Depth + 1, NextY);
+    MaterializeStatementNodes(Context.Graph, GetObjectField(Statement, TEXT("body")), false, FallbackTail, Depth + 1, NextY);
     const TArray<TSharedPtr<FJsonValue>>* Cases = nullptr;
     if (GetArrayField(Statement, TEXT("cases"), Cases))
     {
@@ -1957,11 +1993,11 @@ static TArray<UEdGraphPin*> GenerateStatementNodes(
         {
             const TSharedPtr<FJsonObject> CaseObject = CaseValue.IsValid() ? CaseValue->AsObject() : nullptr;
             MaterializeExpressionNodes(Context.Graph, GetObjectField(CaseObject, TEXT("condition")), Depth + 1, Context.NextExpressionY);
-            MaterializeStatementNodes(Context.Graph, GetObjectField(CaseObject, TEXT("body")), GeneratedTails.Num() > 0, FallbackTail, Depth + 1, NextY);
+            MaterializeStatementNodes(Context.Graph, GetObjectField(CaseObject, TEXT("body")), false, FallbackTail, Depth + 1, NextY);
         }
     }
     NextY += 150;
-    return GeneratedTails;
+    return ExecTails;
 }
 
 static void MaterializeProcedureNodes(UBlueprint* Blueprint, UEdGraph* Graph, const FKmsBpJsonProcedure& Procedure, const bool bPure, FKmsBpImportResult& Result)
@@ -2067,6 +2103,392 @@ static void MaterializeProcedureNodes(UBlueprint* Blueprint, UEdGraph* Graph, co
         }
     }
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+}
+
+struct FKmsGraphFormatNode
+{
+    UEdGraphNode* Node = nullptr;
+    int32 X = 0;
+    int32 Y = 0;
+    int32 Width = 260;
+    int32 Height = 120;
+};
+
+static bool HasExecPin(const UEdGraphNode* Node, EEdGraphPinDirection Direction)
+{
+    if (Node == nullptr)
+    {
+        return false;
+    }
+
+    for (const UEdGraphPin* Pin : Node->Pins)
+    {
+        if (Pin != nullptr && Pin->Direction == Direction && Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool IsExecNodeForFormat(const UEdGraphNode* Node)
+{
+    return Node != nullptr && (HasExecPin(Node, EGPD_Input) || HasExecPin(Node, EGPD_Output));
+}
+
+static bool IsGeneratedNodeForFormat(const UEdGraphNode* Node)
+{
+    return IsGeneratedKmsNode(Node)
+        || (Node != nullptr
+            && (Node->IsA<UK2Node_Event>()
+                || Node->IsA<UK2Node_FunctionEntry>()
+                || Node->IsA<UK2Node_FunctionResult>()
+                || Node->IsA<UK2Node_IfThenElse>()
+                || Node->IsA<UK2Node_MacroInstance>()
+                || Node->IsA<UK2Node_VariableGet>()
+                || Node->IsA<UK2Node_VariableSet>()
+                || Node->IsA<UK2Node_CallFunction>()
+                || Node->IsA<UK2Node_CallArrayFunction>()
+                || Node->IsA<UK2Node_MakeArray>()));
+}
+
+static bool IsExecPinNamed(const UEdGraphPin* Pin, const TCHAR* Name)
+{
+    if (Pin == nullptr)
+    {
+        return false;
+    }
+
+    const FString PinName = Pin->PinName.ToString();
+    const FString DisplayName = Pin->GetDisplayName().ToString();
+    return PinName.Equals(Name, ESearchCase::IgnoreCase)
+        || DisplayName.Equals(Name, ESearchCase::IgnoreCase)
+        || PinName.Contains(Name, ESearchCase::IgnoreCase)
+        || DisplayName.Contains(Name, ESearchCase::IgnoreCase);
+}
+
+static UEdGraphNode* FirstLinkedNode(const UEdGraphPin* Pin)
+{
+    if (Pin == nullptr)
+    {
+        return nullptr;
+    }
+
+    for (UEdGraphPin* LinkedPin : Pin->LinkedTo)
+    {
+        UEdGraphNode* LinkedNode = LinkedPin != nullptr ? LinkedPin->GetOwningNode() : nullptr;
+        if (LinkedNode != nullptr)
+        {
+            return LinkedNode;
+        }
+    }
+    return nullptr;
+}
+
+static int32 EstimateNodeWidth(const UEdGraphNode* Node)
+{
+    if (Node == nullptr)
+    {
+        return 260;
+    }
+    if (Node->IsA<UEdGraphNode_Comment>())
+    {
+        return FMath::Max(320, Node->NodeWidth);
+    }
+    return IsExecNodeForFormat(Node) ? 260 : 220;
+}
+
+static int32 EstimateNodeHeight(const UEdGraphNode* Node)
+{
+    if (Node == nullptr)
+    {
+        return 120;
+    }
+    if (Node->IsA<UEdGraphNode_Comment>())
+    {
+        return FMath::Max(120, Node->NodeHeight);
+    }
+    return IsExecNodeForFormat(Node) ? 120 : 90;
+}
+
+static void PlaceExecTree(
+    UEdGraphNode* Node,
+    int32 X,
+    int32 Y,
+    TMap<UEdGraphNode*, FKmsGraphFormatNode>& Placements,
+    TSet<UEdGraphNode*>& Visiting)
+{
+    if (Node == nullptr || !IsGeneratedNodeForFormat(Node) || Visiting.Contains(Node))
+    {
+        return;
+    }
+
+    if (FKmsGraphFormatNode* Existing = Placements.Find(Node))
+    {
+        Existing->X = FMath::Min(Existing->X, X);
+        Existing->Y = FMath::Min(Existing->Y, Y);
+        return;
+    }
+
+    Visiting.Add(Node);
+    FKmsGraphFormatNode Placement;
+    Placement.Node = Node;
+    Placement.X = X;
+    Placement.Y = Y;
+    Placement.Width = EstimateNodeWidth(Node);
+    Placement.Height = EstimateNodeHeight(Node);
+    Placements.Add(Node, Placement);
+
+    constexpr int32 ExecSpacingX = 360;
+    constexpr int32 BranchSpacingY = 220;
+
+    if (Node->IsA<UK2Node_IfThenElse>())
+    {
+        UEdGraphNode* ThenNode = FirstLinkedNode(FindExecPinByDisplayText(Node, TEXT("then"), EGPD_Output));
+        UEdGraphNode* ElseNode = FirstLinkedNode(FindExecPinByDisplayText(Node, TEXT("else"), EGPD_Output));
+        PlaceExecTree(ThenNode, X + ExecSpacingX, Y - BranchSpacingY, Placements, Visiting);
+        PlaceExecTree(ElseNode, X + ExecSpacingX, Y + BranchSpacingY, Placements, Visiting);
+    }
+    else
+    {
+        for (UEdGraphPin* Pin : Node->Pins)
+        {
+            if (Pin == nullptr
+                || Pin->Direction != EGPD_Output
+                || Pin->PinType.PinCategory != UEdGraphSchema_K2::PC_Exec
+                || Pin->LinkedTo.Num() == 0)
+            {
+                continue;
+            }
+
+            const bool bLoopBody = IsExecPinNamed(Pin, TEXT("Loop Body")) || IsExecPinNamed(Pin, TEXT("Loop"));
+            const bool bCompleted = IsExecPinNamed(Pin, TEXT("Completed")) || IsExecPinNamed(Pin, TEXT("Complete"));
+            const int32 ChildX = X + ExecSpacingX;
+            const int32 ChildY = bLoopBody ? Y + BranchSpacingY : Y + (bCompleted ? 0 : 40);
+            PlaceExecTree(FirstLinkedNode(Pin), ChildX, ChildY, Placements, Visiting);
+        }
+    }
+
+    Visiting.Remove(Node);
+}
+
+static void PlacePureInputsForNode(
+    UEdGraphNode* Consumer,
+    const TMap<UEdGraphNode*, FKmsGraphFormatNode>& ExecPlacements,
+    TMap<UEdGraphNode*, FKmsGraphFormatNode>& Placements,
+    TSet<UEdGraphNode*>& Visiting)
+{
+    const FKmsGraphFormatNode* ConsumerPlacement = ExecPlacements.Find(Consumer);
+    if (Consumer == nullptr || ConsumerPlacement == nullptr)
+    {
+        return;
+    }
+
+    int32 InputIndex = 0;
+    for (UEdGraphPin* Pin : Consumer->Pins)
+    {
+        if (Pin == nullptr || Pin->Direction != EGPD_Input || Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
+        {
+            continue;
+        }
+
+        for (UEdGraphPin* LinkedPin : Pin->LinkedTo)
+        {
+            UEdGraphNode* InputNode = LinkedPin != nullptr ? LinkedPin->GetOwningNode() : nullptr;
+            if (InputNode == nullptr
+                || IsExecNodeForFormat(InputNode)
+                || !IsGeneratedNodeForFormat(InputNode)
+                || Visiting.Contains(InputNode))
+            {
+                continue;
+            }
+
+            Visiting.Add(InputNode);
+            FKmsGraphFormatNode Placement;
+            Placement.Node = InputNode;
+            Placement.X = ConsumerPlacement->X - 300;
+            Placement.Y = ConsumerPlacement->Y + InputIndex * 110 - 30;
+            Placement.Width = EstimateNodeWidth(InputNode);
+            Placement.Height = EstimateNodeHeight(InputNode);
+            Placements.Add(InputNode, Placement);
+            PlacePureInputsForNode(InputNode, Placements, Placements, Visiting);
+            Visiting.Remove(InputNode);
+            ++InputIndex;
+        }
+    }
+}
+
+static bool BoundsOverlap(const FKmsGraphFormatNode& A, const FKmsGraphFormatNode& B)
+{
+    constexpr int32 Padding = 40;
+    return A.X < B.X + B.Width + Padding
+        && A.X + A.Width + Padding > B.X
+        && A.Y < B.Y + B.Height + Padding
+        && A.Y + A.Height + Padding > B.Y;
+}
+
+static void ResolveFormatOverlaps(TArray<FKmsGraphFormatNode*>& Nodes)
+{
+    Nodes.Sort([](const FKmsGraphFormatNode& A, const FKmsGraphFormatNode& B)
+    {
+        if (A.X != B.X)
+        {
+            return A.X < B.X;
+        }
+        return A.Y < B.Y;
+    });
+
+    for (int32 Index = 0; Index < Nodes.Num(); ++Index)
+    {
+        FKmsGraphFormatNode* Current = Nodes[Index];
+        if (Current == nullptr)
+        {
+            continue;
+        }
+
+        bool bMoved = true;
+        while (bMoved)
+        {
+            bMoved = false;
+            for (int32 PreviousIndex = 0; PreviousIndex < Index; ++PreviousIndex)
+            {
+                FKmsGraphFormatNode* Previous = Nodes[PreviousIndex];
+                if (Previous != nullptr && BoundsOverlap(*Current, *Previous))
+                {
+                    Current->Y = Previous->Y + Previous->Height + 80;
+                    bMoved = true;
+                }
+            }
+        }
+    }
+}
+
+static void FormatGeneratedGraph(UBlueprint* Blueprint, UEdGraph* Graph)
+{
+    if (Blueprint == nullptr || Graph == nullptr)
+    {
+        return;
+    }
+
+    TMap<UEdGraphNode*, FKmsGraphFormatNode> Placements;
+    TSet<UEdGraphNode*> Visiting;
+
+    UEdGraphNode* EntryNode = FindFunctionEntryNode(Graph);
+    if (EntryNode == nullptr)
+    {
+        for (UEdGraphNode* Node : Graph->Nodes)
+        {
+            if (Node != nullptr && IsExecNodeForFormat(Node) && !HasExecPin(Node, EGPD_Input))
+            {
+                EntryNode = Node;
+                break;
+            }
+        }
+    }
+
+    if (EntryNode != nullptr)
+    {
+        PlaceExecTree(EntryNode, 0, 0, Placements, Visiting);
+        if (!IsExecNodeForFormat(EntryNode))
+        {
+            if (UK2Node_FunctionResult* ResultNode = FindFunctionResultNode(Graph); ResultNode != nullptr && !Placements.Contains(ResultNode))
+            {
+                FKmsGraphFormatNode ResultPlacement;
+                ResultPlacement.Node = ResultNode;
+                ResultPlacement.X = 360;
+                ResultPlacement.Y = 0;
+                ResultPlacement.Width = EstimateNodeWidth(ResultNode);
+                ResultPlacement.Height = EstimateNodeHeight(ResultNode);
+                Placements.Add(ResultNode, ResultPlacement);
+            }
+        }
+    }
+
+    int32 FallbackY = 0;
+    for (UEdGraphNode* Node : Graph->Nodes)
+    {
+        if (Node == nullptr || !IsGeneratedNodeForFormat(Node) || Placements.Contains(Node))
+        {
+            continue;
+        }
+
+        if (IsExecNodeForFormat(Node))
+        {
+            PlaceExecTree(Node, 0, FallbackY, Placements, Visiting);
+            FallbackY += 220;
+        }
+    }
+
+    TMap<UEdGraphNode*, FKmsGraphFormatNode> ExecPlacements = Placements;
+    for (const TPair<UEdGraphNode*, FKmsGraphFormatNode>& Pair : ExecPlacements)
+    {
+        PlacePureInputsForNode(Pair.Key, ExecPlacements, Placements, Visiting);
+    }
+
+    int32 MarkerY = 520;
+    for (UEdGraphNode* Node : Graph->Nodes)
+    {
+        if (Node == nullptr || !IsGeneratedNodeForFormat(Node) || Placements.Contains(Node))
+        {
+            continue;
+        }
+
+        FKmsGraphFormatNode Placement;
+        Placement.Node = Node;
+        Placement.X = -660;
+        Placement.Y = MarkerY;
+        Placement.Width = EstimateNodeWidth(Node);
+        Placement.Height = EstimateNodeHeight(Node);
+        Placements.Add(Node, Placement);
+        MarkerY += Placement.Height + 80;
+    }
+
+    TArray<FKmsGraphFormatNode*> PlacementValues;
+    for (TPair<UEdGraphNode*, FKmsGraphFormatNode>& Pair : Placements)
+    {
+        PlacementValues.Add(&Pair.Value);
+    }
+    ResolveFormatOverlaps(PlacementValues);
+
+    bool bChanged = false;
+    for (const TPair<UEdGraphNode*, FKmsGraphFormatNode>& Pair : Placements)
+    {
+        UEdGraphNode* Node = Pair.Key;
+        if (Node == nullptr)
+        {
+            continue;
+        }
+
+        if (Node->NodePosX != Pair.Value.X || Node->NodePosY != Pair.Value.Y)
+        {
+            Node->Modify();
+            Node->NodePosX = Pair.Value.X;
+            Node->NodePosY = Pair.Value.Y;
+            bChanged = true;
+        }
+    }
+
+    int32 CommentY = MarkerY + 120;
+    for (UEdGraphNode* Node : Graph->Nodes)
+    {
+        UEdGraphNode_Comment* Comment = Cast<UEdGraphNode_Comment>(Node);
+        if (Comment == nullptr || !Comment->NodeComment.StartsWith(KmsGeneratedCommentPrefix))
+        {
+            continue;
+        }
+
+        Comment->Modify();
+        Comment->NodePosX = -660;
+        Comment->NodePosY = CommentY;
+        CommentY += FMath::Max(Comment->NodeHeight, 120) + 80;
+        bChanged = true;
+    }
+
+    if (bChanged)
+    {
+        Graph->Modify();
+        FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+    }
 }
 
 static FKmsBpJsonProperty ParseProperty(const TSharedPtr<FJsonObject>& Object)
@@ -2336,7 +2758,7 @@ static bool ResolvePinType(const FString& TypeText, FEdGraphPinType& OutPinType,
             ResolvePinType(ConstructedArguments[1], ValueType, Result, false);
             OutPinType = KeyType;
             OutPinType.ContainerType = EPinContainerType::Map;
-            OutPinType.PinValueType = FEdGraphPinType::GetTerminalTypeForContainer(ValueType);
+            OutPinType.PinValueType = FEdGraphTerminalType::FromPinType(ValueType);
             OutPinType.bIsReference = bIsReference;
             return true;
         }
@@ -2642,7 +3064,7 @@ static void ClearSCS(UBlueprint* Blueprint)
     SCS->ValidateSceneRootNodes();
 }
 
-static UBlueprint* CreateOrLoadBlueprint(const FKmsBpJsonBlueprint& JsonBlueprint, FKmsBpImportResult& Result)
+static UBlueprint* CreateOrLoadBlueprint(const FKmsBpJsonBlueprint& JsonBlueprint, const FKmsBpImportOptions& Options, FKmsBpImportResult& Result)
 {
     FString PackageName = JsonBlueprint.AssetPath;
     PackageName.TrimStartAndEndInline();
@@ -2657,8 +3079,23 @@ static UBlueprint* CreateOrLoadBlueprint(const FKmsBpJsonBlueprint& JsonBlueprin
     UBlueprint* Blueprint = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, *ToObjectPath(PackageName), nullptr, LOAD_NoWarn | LOAD_DisableCompileOnLoad));
     if (Blueprint != nullptr)
     {
+        if (Options.bRecreateExistingBlueprint)
+        {
+            const int32 DeletedCount = ObjectTools::ForceDeleteObjects({ Blueprint }, false);
+            if (DeletedCount <= 0)
+            {
+                AddError(Result, FString::Printf(TEXT("Failed to recreate existing Blueprint %s: delete failed."), *Blueprint->GetPathName()));
+                return nullptr;
+            }
+
+            CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+            Blueprint = nullptr;
+        }
+        else
+        {
         AddMessage(Result, FString::Printf(TEXT("Updating existing Blueprint %s."), *Blueprint->GetPathName()));
         return Blueprint;
+        }
     }
 
     UClass* ParentClass = ResolveParentClass(JsonBlueprint.ParentType, Result);
@@ -2811,8 +3248,9 @@ static UEdGraph* FindFunctionGraph(UBlueprint* Blueprint, const FName GraphName)
         return nullptr;
     }
 
-    for (UEdGraph* Graph : Blueprint->FunctionGraphs)
+    for (int32 Index = Blueprint->FunctionGraphs.Num() - 1; Index >= 0; --Index)
     {
+        UEdGraph* Graph = Blueprint->FunctionGraphs[Index];
         if (Graph != nullptr && Graph->GetFName() == GraphName)
         {
             return Graph;
@@ -2820,6 +3258,40 @@ static UEdGraph* FindFunctionGraph(UBlueprint* Blueprint, const FName GraphName)
     }
 
     return nullptr;
+}
+
+static void RemoveDuplicateFunctionGraphs(UBlueprint* Blueprint, const FName GraphName)
+{
+    if (Blueprint == nullptr)
+    {
+        return;
+    }
+
+    TArray<UEdGraph*> MatchingGraphs;
+    for (UEdGraph* Graph : Blueprint->FunctionGraphs)
+    {
+        if (Graph != nullptr && Graph->GetFName() == GraphName)
+        {
+            MatchingGraphs.Add(Graph);
+        }
+    }
+
+    if (MatchingGraphs.Num() <= 1)
+    {
+        return;
+    }
+
+    TArray<UEdGraph*> GraphsToRemove;
+    for (int32 Index = 0; Index < MatchingGraphs.Num() - 1; ++Index)
+    {
+        GraphsToRemove.Add(MatchingGraphs[Index]);
+    }
+
+    if (GraphsToRemove.Num() > 0)
+    {
+        FBlueprintEditorUtils::RemoveGraphs(Blueprint, GraphsToRemove);
+        FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
+    }
 }
 
 static UEdGraph* FindOrCreateEventGraph(UBlueprint* Blueprint)
@@ -3224,6 +3696,10 @@ static bool ImportProcedures(UBlueprint* Blueprint, const FKmsBpJsonBlueprint& J
             UEdGraph* EventGraph = FindOrCreateEventGraph(Blueprint);
             MaterializeProcedureNodes(Blueprint, EventGraph, Procedure, false, Result);
             AddProcedureComment(Blueprint, EventGraph, Procedure, ProcedureIndex++);
+            if (Options.bFormatGraphs)
+            {
+                FormatGeneratedGraph(Blueprint, EventGraph);
+            }
             continue;
         }
 
@@ -3232,6 +3708,10 @@ static bool ImportProcedures(UBlueprint* Blueprint, const FKmsBpJsonBlueprint& J
             UEdGraph* ConstructionGraph = FindOrCreateConstructionScriptGraph(Blueprint);
             MaterializeProcedureNodes(Blueprint, ConstructionGraph, Procedure, false, Result);
             AddProcedureComment(Blueprint, ConstructionGraph, Procedure, ProcedureIndex++);
+            if (Options.bFormatGraphs)
+            {
+                FormatGeneratedGraph(Blueprint, ConstructionGraph);
+            }
             continue;
         }
 
@@ -3240,6 +3720,10 @@ static bool ImportProcedures(UBlueprint* Blueprint, const FKmsBpJsonBlueprint& J
             UEdGraph* DelegateGraph = FindOrCreateDelegateSignatureGraph(Blueprint, Procedure, Result);
             SyncDelegateSignature(Blueprint, DelegateGraph, Procedure, Result);
             AddProcedureComment(Blueprint, DelegateGraph, Procedure, ProcedureIndex++);
+            if (Options.bFormatGraphs)
+            {
+                FormatGeneratedGraph(Blueprint, DelegateGraph);
+            }
             continue;
         }
 
@@ -3247,10 +3731,15 @@ static bool ImportProcedures(UBlueprint* Blueprint, const FKmsBpJsonBlueprint& J
             || Procedure.Kind.Equals(TEXT("pure"), ESearchCase::IgnoreCase))
         {
             const bool bPure = Procedure.Kind.Equals(TEXT("pure"), ESearchCase::IgnoreCase);
+            RemoveDuplicateFunctionGraphs(Blueprint, FName(*Procedure.Name));
             UEdGraph* FunctionGraph = FindOrCreateFunctionGraph(Blueprint, Procedure.Name, bPure);
             SyncFunctionSignature(Blueprint, FunctionGraph, Procedure, bPure, Result);
             MaterializeProcedureNodes(Blueprint, FunctionGraph, Procedure, bPure, Result);
             AddProcedureComment(Blueprint, FunctionGraph, Procedure, ProcedureIndex++);
+            if (Options.bFormatGraphs)
+            {
+                FormatGeneratedGraph(Blueprint, FunctionGraph);
+            }
             continue;
         }
 
@@ -3280,7 +3769,7 @@ static bool SaveBlueprintPackage(UBlueprint* Blueprint, FKmsBpImportResult& Resu
 
 static bool ImportBlueprint(const FKmsBpJsonBlueprint& JsonBlueprint, const FKmsBpImportOptions& Options, FKmsBpImportResult& Result)
 {
-    UBlueprint* Blueprint = CreateOrLoadBlueprint(JsonBlueprint, Result);
+    UBlueprint* Blueprint = CreateOrLoadBlueprint(JsonBlueprint, Options, Result);
     if (Blueprint == nullptr)
     {
         return false;
