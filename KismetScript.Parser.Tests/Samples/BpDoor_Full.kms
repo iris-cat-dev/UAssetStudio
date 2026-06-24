@@ -5,13 +5,25 @@ blueprint BP_Door : Actor at "/Game/Generated/BP_Door_Gen" {
     @attach(Root)
     component Mesh: StaticMeshComponent {
         StaticMesh = asset<StaticMesh>("/Game/Props/SM_Door.SM_Door");
+        Mobility: byte = 1;
     }
 
     @editable
     @category("Door")
     var OpenAngle: float = 90.0;
 
+    var IsOpen: bool = false;
+
     event BeginPlay() {
         print("Door ready");
+    }
+
+    @category("Door")
+    callable void Toggle() {
+        IsOpen = !IsOpen;
+    }
+
+    pure bool GetIsOpen() {
+        return IsOpen;
     }
 }

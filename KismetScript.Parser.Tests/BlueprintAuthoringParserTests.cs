@@ -1,8 +1,11 @@
 using KismetScript.Parser;
 using KismetScript.Syntax;
 using KismetScript.Syntax.Blueprint;
+using KismetScript.Syntax.Statements;
 using KismetScript.Syntax.Statements.Declarations;
 using KismetScript.Syntax.Statements.Expressions;
+using KismetScript.Syntax.Statements.Expressions.Binary;
+using KismetScript.Syntax.Statements.Expressions.Unary;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace KismetScript.Parser.Tests;
@@ -126,20 +129,51 @@ public class BlueprintAuthoringParserTests
     }
 
     [TestMethod]
-    public void KeepsLegacyKmsIrSyntaxParsing()
+    public void SampleFiles_AreBlueprintProfile()
     {
-        var unit = ParseSample("Ir_ExistingSyntax.kms");
+        var sampleDir = Path.Combine(AppContext.BaseDirectory, "Samples");
+        var samples = Directory.GetFiles(sampleDir, "*.kms").Select(Path.GetFileName).ToArray();
 
-        Assert.AreEqual(KmsProfile.Ir, KmsProfileDetector.Detect(unit));
-        Assert.IsTrue(unit.Declarations.OfType<ClassDeclaration>().Any(x => x.Identifier.Text == "BP_Door_C"));
-        Assert.IsTrue(unit.Declarations.OfType<ObjectDeclaration>().Any(x => x.Identifier.Text == "Default__BP_Door_C"));
+        CollectionAssert.DoesNotContain(samples, "Ir_ExistingSyntax.kms");
+        foreach (var sample in samples)
+        {
+            var unit = ParseSample(sample!);
+            Assert.AreEqual(KmsProfile.Blueprint, KmsProfileDetector.Detect(unit), sample);
+            Assert.IsTrue(unit.Declarations.OfType<BlueprintDeclaration>().Any(), sample);
+        }
+    }
+
+    [TestMethod]
+    public void ParsesBpAllowedStatementsAndExpressions()
+    {
+        var blueprint = ParseFirstBlueprint("BpDoor_SyntaxExpressions.kms");
+        var exercise = blueprint.Declarations.OfType<ProcedureDeclaration>().Single(x => x.Identifier.Text == "Exercise");
+        var shouldOpen = blueprint.Declarations.OfType<ProcedureDeclaration>().Single(x => x.Identifier.Text == "ShouldOpen");
+        var body = (CompoundStatement)exercise.Body!;
+
+        Assert.IsTrue(body.Statements.OfType<IfStatement>().Any());
+        Assert.IsTrue(body.Statements.OfType<WhileStatement>().Any());
+
+        var values = body.Statements.OfType<VariableDeclaration>().Single(x => x.Identifier.Text == "Values");
+        var config = body.Statements.OfType<VariableDeclaration>().Single(x => x.Identifier.Text == "Config");
+        var localFloat = body.Statements.OfType<VariableDeclaration>().Single(x => x.Identifier.Text == "LocalFloat");
+        var typeName = body.Statements.OfType<VariableDeclaration>().Single(x => x.Identifier.Text == "TypeName");
+
+        Assert.IsInstanceOfType(values.Initializer, typeof(InitializerList));
+        Assert.IsInstanceOfType(config.Initializer, typeof(ObjectLiteral));
+        Assert.IsInstanceOfType(localFloat.Initializer, typeof(CastOperator));
+        Assert.IsInstanceOfType(typeName.Initializer, typeof(TypeofOperator));
+        Assert.IsTrue(FindExpressions(body).OfType<SubscriptOperator>().Any());
+
+        var returnStatement = ((CompoundStatement)shouldOpen.Body!).Statements.OfType<ReturnStatement>().Single();
+        Assert.IsInstanceOfType(returnStatement.Value, typeof(ConditionalExpression));
     }
 
     [TestMethod]
     public void LegacyAttributeBlueprint_NormalizesToBpModel()
     {
         var modern = BlueprintProfileNormalizer.Normalize(ParseText(FullModernDoorSample())).Blueprints.Single();
-        var legacy = BlueprintProfileNormalizer.Normalize(ParseSample("BpDoor_LegacyAttributes.kms")).Blueprints.Single();
+        var legacy = BlueprintProfileNormalizer.Normalize(ParseText(LegacyAttributeDoorSample())).Blueprints.Single();
 
         Assert.AreEqual(modern.AssetPath, legacy.AssetPath);
         Assert.AreEqual(modern.ParentType, legacy.ParentType);
@@ -167,6 +201,103 @@ public class BlueprintAuthoringParserTests
         return new KismetScriptASTParser().Parse(text);
     }
 
+    private static IEnumerable<Expression> FindExpressions(Statement statement)
+    {
+        switch (statement)
+        {
+            case CompoundStatement compound:
+                foreach (var child in compound.Statements.SelectMany(FindExpressions))
+                    yield return child;
+                break;
+            case VariableDeclaration variable when variable.Initializer != null:
+                foreach (var child in FindExpressions(variable.Initializer))
+                    yield return child;
+                break;
+            case IfStatement ifStatement:
+                foreach (var child in FindExpressions(ifStatement.Condition))
+                    yield return child;
+                if (ifStatement.Body != null)
+                {
+                    foreach (var child in FindExpressions(ifStatement.Body))
+                        yield return child;
+                }
+                if (ifStatement.ElseBody != null)
+                {
+                    foreach (var child in FindExpressions(ifStatement.ElseBody))
+                        yield return child;
+                }
+                break;
+            case WhileStatement whileStatement:
+                foreach (var child in FindExpressions(whileStatement.Condition))
+                    yield return child;
+                if (whileStatement.Body != null)
+                {
+                    foreach (var child in FindExpressions(whileStatement.Body))
+                        yield return child;
+                }
+                break;
+            case ReturnStatement returnStatement when returnStatement.Value != null:
+                foreach (var child in FindExpressions(returnStatement.Value))
+                    yield return child;
+                break;
+            case Expression expression:
+                foreach (var child in FindExpressions(expression))
+                    yield return child;
+                break;
+        }
+    }
+
+    private static IEnumerable<Expression> FindExpressions(Expression expression)
+    {
+        yield return expression;
+
+        switch (expression)
+        {
+            case CallOperator call:
+                foreach (var child in call.Arguments.SelectMany(argument => FindExpressions(argument.Expression)))
+                    yield return child;
+                break;
+            case MemberExpression member:
+                foreach (var child in FindExpressions(member.Context))
+                    yield return child;
+                foreach (var child in FindExpressions(member.Member))
+                    yield return child;
+                break;
+            case SubscriptOperator subscript:
+                foreach (var child in FindExpressions(subscript.Operand))
+                    yield return child;
+                foreach (var child in FindExpressions(subscript.Index))
+                    yield return child;
+                break;
+            case BinaryExpression binary:
+                foreach (var child in FindExpressions(binary.Left))
+                    yield return child;
+                foreach (var child in FindExpressions(binary.Right))
+                    yield return child;
+                break;
+            case UnaryExpression unary:
+                foreach (var child in FindExpressions(unary.Operand))
+                    yield return child;
+                break;
+            case ConditionalExpression conditional:
+                foreach (var child in FindExpressions(conditional.Condition))
+                    yield return child;
+                foreach (var child in FindExpressions(conditional.ValueIfTrue))
+                    yield return child;
+                foreach (var child in FindExpressions(conditional.ValueIfFalse))
+                    yield return child;
+                break;
+            case InitializerList initializer:
+                foreach (var child in initializer.Expressions.SelectMany(FindExpressions))
+                    yield return child;
+                break;
+            case ObjectLiteral objectLiteral:
+                foreach (var child in objectLiteral.Entries.SelectMany(entry => FindExpressions(entry.Value)))
+                    yield return child;
+                break;
+        }
+    }
+
     internal static string FullModernDoorSample()
     {
         return """
@@ -184,6 +315,31 @@ public class BlueprintAuthoringParserTests
                 var OpenAngle: float = 90.0;
 
                 event BeginPlay() {
+                    print("Door ready");
+                }
+            }
+            """;
+    }
+
+    internal static string LegacyAttributeDoorSample()
+    {
+        return """
+            [Blueprint(Path = "/Game/Generated/BP_Door_Gen")]
+            class BP_Door : Actor {
+                [RootComponent]
+                object Root : SceneComponent {
+                }
+
+                [Component, Attach = Root]
+                object Mesh : StaticMeshComponent {
+                    Object<StaticMesh> StaticMesh = asset<StaticMesh>("/Game/Props/SM_Door.SM_Door");
+                }
+
+                [Edit, Category("Door")]
+                float OpenAngle = 90.0f;
+
+                [Event("BeginPlay")]
+                void ReceiveBeginPlay() {
                     print("Door ready");
                 }
             }

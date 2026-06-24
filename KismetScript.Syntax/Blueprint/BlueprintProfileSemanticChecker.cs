@@ -206,6 +206,9 @@ public static class BlueprintProfileSemanticChecker
                 CheckExpression(memberExpression.Context, diagnostics);
                 CheckExpression(memberExpression.Member, diagnostics);
                 break;
+            case SubscriptOperator subscriptOperator:
+                CheckExpression(subscriptOperator.Index, diagnostics);
+                break;
             case BinaryExpression binaryExpression:
                 CheckExpression(binaryExpression.Left, diagnostics);
                 CheckExpression(binaryExpression.Right, diagnostics);

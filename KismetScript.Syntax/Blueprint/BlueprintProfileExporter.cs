@@ -194,12 +194,32 @@ public static class BlueprintProfileExporter
                 Member = ExportExpression(member.Member),
                 Source = ExportSource(expression)
             },
+            SubscriptOperator subscript => new KmsBpExpressionDto
+            {
+                Kind = "subscript",
+                Context = ExportExpression(subscript.Operand),
+                Index = ExportExpression(subscript.Index),
+                Source = ExportSource(expression)
+            },
             BinaryExpression binary => new KmsBpExpressionDto
             {
                 Kind = "binary",
                 Op = GetBinaryOperator(binary),
                 Left = ExportExpression(binary.Left),
                 Right = ExportExpression(binary.Right),
+                Source = ExportSource(expression)
+            },
+            CastOperator cast => new KmsBpExpressionDto
+            {
+                Kind = "cast",
+                Type = FormatType(cast.TypeIdentifier),
+                Operand = ExportExpression(cast.Operand),
+                Source = ExportSource(expression)
+            },
+            TypeofOperator typeOf => new KmsBpExpressionDto
+            {
+                Kind = "typeof",
+                Type = typeOf.Operand is TypeIdentifier typeIdentifier ? FormatType(typeIdentifier) : typeOf.Operand.ToString(),
                 Source = ExportSource(expression)
             },
             UnaryExpression unary => new KmsBpExpressionDto
@@ -431,6 +451,7 @@ public sealed class KmsBpExpressionDto
     public KmsBpExpressionDto? Left { get; set; }
     public KmsBpExpressionDto? Right { get; set; }
     public KmsBpExpressionDto? Operand { get; set; }
+    public KmsBpExpressionDto? Index { get; set; }
     public KmsBpExpressionDto? Condition { get; set; }
     public KmsBpExpressionDto? Then { get; set; }
     public KmsBpExpressionDto? Else { get; set; }

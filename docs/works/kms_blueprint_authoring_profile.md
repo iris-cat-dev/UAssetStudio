@@ -108,7 +108,8 @@ Rejected by KMS-BP semantic checker:
 - assignment and compound assignment
 - arithmetic, comparison, equality, logical operators
 - unary `!`, `-`, `++`, `--`
-- initializer lists and object literals continue to parse where the current KMS parser already supports them; BP backend support can be staged.
+- subscript, cast, typeof, conditional expressions
+- initializer lists and object literals
 
 ## Legacy Compatibility
 
@@ -151,6 +152,11 @@ Status as of 2026-06-23:
 - Done: `KismetScript.Parser.Tests` added to the solution with parser, normalizer, and semantic checker coverage.
 - Done: CLI bridge commands added: `kms-bp validate` and `kms-bp export`.
 - Done: `BlueprintProfileExporter` emits stable bridge JSON with `schemaVersion = "kms-bp-export-v1"`.
+- Done: `BlueprintProfileExporter` emits stable DTOs for allowed BP statements plus literal, identifier, call, member, binary, unary, conditional, array, initializer, object, subscript, cast, typeof, and new-expression syntax.
+- Done: UE plugin graph skeleton comments render exported KMS-BP statements and expressions instead of falling back to raw JSON kind names.
+- Done: UE plugin imports callable/pure procedure parameters, `out` parameters, and non-void returns as real function entry/result pins.
+- Done: UE 5.6 packaging and commandlet fixture validation pass with `UnrealPlugins/KmsBlueprintImporter/Tests/BpDoor_FunctionSignature.kms-bp.json`.
+- Done: UE 5.6 packaging and commandlet validation pass with the syntax/expression fixture `UnrealPlugins/KmsBlueprintImporter/Tests/BpDoor_SyntaxExpressions.kms-bp.json`, producing `/Game/Generated/BP_Door_Syntax_Gen`.
 
 Current validation:
 
@@ -158,7 +164,7 @@ Current validation:
 dotnet test KismetScript.Parser.Tests/KismetScript.Parser.Tests.csproj
 ```
 
-Result at time of writing: 21 tests passing.
+Result at time of writing: 24 tests passing.
 
 ## CLI Bridge JSON Export
 
@@ -253,7 +259,8 @@ Parser tests cover:
 - `ParsesEventDeclaration`
 - `ParsesCallableAndPureDeclarations`
 - `ParsesTypedAssetReference`
-- `KeepsLegacyKmsIrSyntaxParsing`
+- `SampleFiles_AreBlueprintProfile`
+- `ParsesBpAllowedStatementsAndExpressions`
 
 Semantic tests cover:
 
@@ -266,12 +273,14 @@ Semantic tests cover:
 - `BpProfile_For_ReportsError`
 - `BpProfile_NewExpression_ReportsError`
 - `BpProfile_IrIntrinsic_ReportsError`
+- `BpProfile_SyntaxExpressionSample_HasNoDiagnostics`
 - `LegacyAttributeBlueprint_NormalizesToBpModel`
 - `Exporter_ProducesStableBridgeDocument`
+- `Exporter_EmitsAllowedStatementAndExpressionKinds`
 
 ## Next Steps
 
-1. UE plugin MVP is implemented under `UnrealPlugins/KmsBlueprintImporter`: it consumes `kms-bp-export-v1`, creates or updates Blueprint assets, builds SCS components, imports variables, creates graph skeleton comments, compiles, and saves.
-2. Next UE pass: generate real K2 nodes from exported statements/expressions, plus function parameters and return pins.
-3. Add an Unreal automation fixture that imports the Door demo JSON and verifies the generated Blueprint structure.
+1. UE plugin MVP is implemented under `UnrealPlugins/KmsBlueprintImporter`: it consumes `kms-bp-export-v1`, creates or updates Blueprint assets, builds SCS components, imports variables, creates graph skeleton comments, generates function signatures, compiles, and saves.
+2. Next UE pass: generate real K2 nodes from exported statements/expressions; current coverage preserves them in imported graph skeleton comments.
+3. Add an Unreal automation test that imports the Door fixture JSON and verifies the generated Blueprint structure.
 4. Add a CLI-facing `--profile auto|ir|bp` option for existing `compile` workflows so BP authoring files are routed away from the bytecode compiler.

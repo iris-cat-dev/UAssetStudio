@@ -1,0 +1,32 @@
+blueprint BP_Door_Syntax : Actor at "/Game/Generated/BP_Door_Syntax_Gen" {
+    var IsOpen: bool = false;
+    var OpenAngle: float = 90.0;
+    var UseFastPath: bool = true;
+
+    callable void Exercise(Value: int, out Result: int) {
+        var Local: int = Value + 1;
+        var Values: Array<int> = [1, 2, 3];
+        var Config: DoorConfig = { Mode: "Door", Count: 3 };
+        var LocalFloat: float = (float)Result;
+        var TypeName: Type = typeof(float);
+
+        Result = Values[0] + Local;
+        if (UseFastPath && Result > 0) {
+            print("fast");
+        } else {
+            print("slow");
+        }
+
+        while (Result < 3) {
+            Result += 1;
+            if (Result == 2) {
+                continue;
+            }
+            break;
+        }
+    }
+
+    pure bool ShouldOpen() {
+        return IsOpen ? true : OpenAngle > 45.0;
+    }
+}

@@ -19,10 +19,11 @@ Regenerate project files if needed, build the editor target, then enable the plu
 For standalone plugin packaging:
 
 ```bash
-<UE>/Engine/Build/BatchFiles/RunUAT.sh BuildPlugin \
+<UE>/Engine/Build/BatchFiles/RunUAT.bat BuildPlugin \
   -Plugin=/path/to/KmsBlueprintImporter.uplugin \
   -Package=/tmp/KmsBlueprintImporterBuild \
-  -TargetPlatforms=Mac
+  -TargetPlatforms=Win64 \
+  -StrictIncludes
 ```
 
 The UE source checkout must have completed its normal setup step so bundled DotNet and UnrealBuildTool dependencies are available.
@@ -61,10 +62,32 @@ Implemented:
 - Applies component template properties for literal bool/number/string/name/text values and `asset<T>("...")` object references.
 - Creates/updates member variables with type/default/category/editable metadata.
 - Creates event/function graph skeletons and preserves KMS body text in generated comment nodes.
+- Generates real function entry/result pins for callable/pure procedure parameters, `out` parameters, and non-void return values.
 - Compiles and saves generated Blueprint packages by default.
+
+## UE 5.6 Validation
+
+Package the plugin, then run the fixture import through a minimal host project:
+
+```bash
+<UE>/Engine/Build/BatchFiles/RunUAT.bat BuildPlugin \
+  -Plugin=/path/to/UnrealPlugins/KmsBlueprintImporter/KmsBlueprintImporter.uplugin \
+  -Package=/path/to/UnrealPlugins/KmsBlueprintImporter_Build_UE5_6 \
+  -TargetPlatforms=Win64 \
+  -StrictIncludes
+
+<UE>/Engine/Binaries/Win64/UnrealEditor-Cmd.exe \
+  /path/to/UnrealPlugins/KmsBlueprintImporter_TestHost/KmsBlueprintImporter_TestHost.uproject \
+  -PLUGIN=/path/to/UnrealPlugins/KmsBlueprintImporter_Build_UE5_6/KmsBlueprintImporter.uplugin \
+  -EnablePlugins=KmsBlueprintImporter \
+  -run=KmsBpImport \
+  -Json=/path/to/UnrealPlugins/KmsBlueprintImporter/Tests/BpDoor_FunctionSignature.kms-bp.json \
+  -NoShaderCompile -Unattended -NoSplash -NullRHI -NoSound -stdout -FullStdOutLogOutput \
+  -ddc=NoZenLocalFallback \
+  -LocalDataCachePath=/path/to/UnrealPlugins/KmsBlueprintImporter_TestHost/DerivedDataCache
+```
 
 Staged for the next pass:
 
 - Translate KMS-BP statement/expression JSON into real K2 nodes instead of comment skeletons.
-- Generate function parameters and return pins from `parameters` / `returnType`.
 - Add an Unreal automation test fixture that imports the Door demo and inspects the resulting Blueprint.

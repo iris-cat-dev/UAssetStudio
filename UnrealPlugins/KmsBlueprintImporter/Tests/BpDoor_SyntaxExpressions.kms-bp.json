@@ -1,0 +1,881 @@
+{
+  "schemaVersion": "kms-bp-export-v1",
+  "sourcePath": "D:\\Project\\UAssetStudio\\KismetScript.Parser.Tests\\Samples\\BpDoor_SyntaxExpressions.kms",
+  "sourceSha256": "ffd5748736d528cc5c673a714468c30ca4b98e256cc8421c93ed4322b5bf6163",
+  "blueprints": [
+    {
+      "name": "BP_Door_Syntax",
+      "parentType": "Actor",
+      "assetPath": "/Game/Generated/BP_Door_Syntax_Gen",
+      "components": [],
+      "variables": [
+        {
+          "name": "IsOpen",
+          "type": "bool",
+          "isEditable": false,
+          "initializer": {
+            "kind": "literal",
+            "type": "bool",
+            "value": false,
+            "typeArguments": [],
+            "arguments": [],
+            "items": [],
+            "entries": [],
+            "source": {
+              "line": 2,
+              "column": 23
+            }
+          },
+          "source": {
+            "line": 2,
+            "column": 4
+          }
+        },
+        {
+          "name": "OpenAngle",
+          "type": "float",
+          "isEditable": false,
+          "initializer": {
+            "kind": "literal",
+            "type": "float",
+            "value": 90,
+            "typeArguments": [],
+            "arguments": [],
+            "items": [],
+            "entries": [],
+            "source": {
+              "line": 3,
+              "column": 27
+            }
+          },
+          "source": {
+            "line": 3,
+            "column": 4
+          }
+        },
+        {
+          "name": "UseFastPath",
+          "type": "bool",
+          "isEditable": false,
+          "initializer": {
+            "kind": "literal",
+            "type": "bool",
+            "value": true,
+            "typeArguments": [],
+            "arguments": [],
+            "items": [],
+            "entries": [],
+            "source": {
+              "line": 4,
+              "column": 28
+            }
+          },
+          "source": {
+            "line": 4,
+            "column": 4
+          }
+        }
+      ],
+      "procedures": [
+        {
+          "name": "Exercise",
+          "kind": "callable",
+          "returnType": "void",
+          "parameters": [
+            {
+              "name": "Value",
+              "type": "int",
+              "modifier": "0",
+              "source": {
+                "line": 6,
+                "column": 27
+              }
+            },
+            {
+              "name": "Result",
+              "type": "int",
+              "modifier": "out",
+              "source": {
+                "line": 6,
+                "column": 39
+              }
+            }
+          ],
+          "body": {
+            "kind": "block",
+            "statements": [
+              {
+                "kind": "var",
+                "name": "Local",
+                "type": "int",
+                "initializer": {
+                  "kind": "binary",
+                  "op": "+",
+                  "typeArguments": [],
+                  "arguments": [],
+                  "left": {
+                    "kind": "identifier",
+                    "name": "Value",
+                    "typeArguments": [],
+                    "arguments": [],
+                    "items": [],
+                    "entries": [],
+                    "source": {
+                      "line": 7,
+                      "column": 25
+                    }
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "type": "int",
+                    "value": 1,
+                    "typeArguments": [],
+                    "arguments": [],
+                    "items": [],
+                    "entries": [],
+                    "source": {
+                      "line": 7,
+                      "column": 33
+                    }
+                  },
+                  "items": [],
+                  "entries": [],
+                  "source": {
+                    "line": 7,
+                    "column": 25
+                  }
+                },
+                "statements": [],
+                "source": {
+                  "line": 7,
+                  "column": 8
+                }
+              },
+              {
+                "kind": "var",
+                "name": "Values",
+                "type": "Array<int>",
+                "initializer": {
+                  "kind": "array",
+                  "typeArguments": [],
+                  "arguments": [],
+                  "items": [
+                    {
+                      "kind": "literal",
+                      "type": "int",
+                      "value": 1,
+                      "typeArguments": [],
+                      "arguments": [],
+                      "items": [],
+                      "entries": [],
+                      "source": {
+                        "line": 8,
+                        "column": 34
+                      }
+                    },
+                    {
+                      "kind": "literal",
+                      "type": "int",
+                      "value": 2,
+                      "typeArguments": [],
+                      "arguments": [],
+                      "items": [],
+                      "entries": [],
+                      "source": {
+                        "line": 8,
+                        "column": 37
+                      }
+                    },
+                    {
+                      "kind": "literal",
+                      "type": "int",
+                      "value": 3,
+                      "typeArguments": [],
+                      "arguments": [],
+                      "items": [],
+                      "entries": [],
+                      "source": {
+                        "line": 8,
+                        "column": 40
+                      }
+                    }
+                  ],
+                  "entries": [],
+                  "source": {
+                    "line": 8,
+                    "column": 33
+                  }
+                },
+                "statements": [],
+                "source": {
+                  "line": 8,
+                  "column": 8
+                }
+              },
+              {
+                "kind": "var",
+                "name": "Config",
+                "type": "DoorConfig",
+                "initializer": {
+                  "kind": "object",
+                  "typeArguments": [],
+                  "arguments": [],
+                  "items": [],
+                  "entries": [
+                    {
+                      "key": {
+                        "kind": "identifier",
+                        "name": "Mode",
+                        "typeArguments": [],
+                        "arguments": [],
+                        "items": [],
+                        "entries": [],
+                        "source": {
+                          "line": 9,
+                          "column": 35
+                        }
+                      },
+                      "value": {
+                        "kind": "literal",
+                        "type": "string",
+                        "value": "Door",
+                        "typeArguments": [],
+                        "arguments": [],
+                        "items": [],
+                        "entries": [],
+                        "source": {
+                          "line": 9,
+                          "column": 41
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "kind": "identifier",
+                        "name": "Count",
+                        "typeArguments": [],
+                        "arguments": [],
+                        "items": [],
+                        "entries": [],
+                        "source": {
+                          "line": 9,
+                          "column": 49
+                        }
+                      },
+                      "value": {
+                        "kind": "literal",
+                        "type": "int",
+                        "value": 3,
+                        "typeArguments": [],
+                        "arguments": [],
+                        "items": [],
+                        "entries": [],
+                        "source": {
+                          "line": 9,
+                          "column": 56
+                        }
+                      }
+                    }
+                  ],
+                  "source": {
+                    "line": 9,
+                    "column": 33
+                  }
+                },
+                "statements": [],
+                "source": {
+                  "line": 9,
+                  "column": 8
+                }
+              },
+              {
+                "kind": "var",
+                "name": "LocalFloat",
+                "type": "float",
+                "initializer": {
+                  "kind": "cast",
+                  "type": "float",
+                  "typeArguments": [],
+                  "arguments": [],
+                  "operand": {
+                    "kind": "identifier",
+                    "name": "Result",
+                    "typeArguments": [],
+                    "arguments": [],
+                    "items": [],
+                    "entries": [],
+                    "source": {
+                      "line": 10,
+                      "column": 39
+                    }
+                  },
+                  "items": [],
+                  "entries": [],
+                  "source": {
+                    "line": 10,
+                    "column": 32
+                  }
+                },
+                "statements": [],
+                "source": {
+                  "line": 10,
+                  "column": 8
+                }
+              },
+              {
+                "kind": "var",
+                "name": "TypeName",
+                "type": "Type",
+                "initializer": {
+                  "kind": "typeof",
+                  "type": "float",
+                  "typeArguments": [],
+                  "arguments": [],
+                  "items": [],
+                  "entries": [],
+                  "source": {
+                    "line": 11,
+                    "column": 29
+                  }
+                },
+                "statements": [],
+                "source": {
+                  "line": 11,
+                  "column": 8
+                }
+              },
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "op": "=",
+                  "typeArguments": [],
+                  "arguments": [],
+                  "left": {
+                    "kind": "identifier",
+                    "name": "Result",
+                    "typeArguments": [],
+                    "arguments": [],
+                    "items": [],
+                    "entries": [],
+                    "source": {
+                      "line": 13,
+                      "column": 8
+                    }
+                  },
+                  "right": {
+                    "kind": "binary",
+                    "op": "+",
+                    "typeArguments": [],
+                    "arguments": [],
+                    "left": {
+                      "kind": "subscript",
+                      "typeArguments": [],
+                      "arguments": [],
+                      "context": {
+                        "kind": "identifier",
+                        "name": "Values",
+                        "typeArguments": [],
+                        "arguments": [],
+                        "items": [],
+                        "entries": [],
+                        "source": {
+                          "line": 13,
+                          "column": 17
+                        }
+                      },
+                      "index": {
+                        "kind": "literal",
+                        "type": "int",
+                        "value": 0,
+                        "typeArguments": [],
+                        "arguments": [],
+                        "items": [],
+                        "entries": [],
+                        "source": {
+                          "line": 13,
+                          "column": 24
+                        }
+                      },
+                      "items": [],
+                      "entries": [],
+                      "source": {
+                        "line": 13,
+                        "column": 17
+                      }
+                    },
+                    "right": {
+                      "kind": "identifier",
+                      "name": "Local",
+                      "typeArguments": [],
+                      "arguments": [],
+                      "items": [],
+                      "entries": [],
+                      "source": {
+                        "line": 13,
+                        "column": 29
+                      }
+                    },
+                    "items": [],
+                    "entries": [],
+                    "source": {
+                      "line": 13,
+                      "column": 17
+                    }
+                  },
+                  "items": [],
+                  "entries": [],
+                  "source": {
+                    "line": 13,
+                    "column": 8
+                  }
+                },
+                "statements": [],
+                "source": {
+                  "line": 13,
+                  "column": 8
+                }
+              },
+              {
+                "kind": "if",
+                "condition": {
+                  "kind": "binary",
+                  "op": "&&",
+                  "typeArguments": [],
+                  "arguments": [],
+                  "left": {
+                    "kind": "identifier",
+                    "name": "UseFastPath",
+                    "typeArguments": [],
+                    "arguments": [],
+                    "items": [],
+                    "entries": [],
+                    "source": {
+                      "line": 14,
+                      "column": 12
+                    }
+                  },
+                  "right": {
+                    "kind": "binary",
+                    "op": ">",
+                    "typeArguments": [],
+                    "arguments": [],
+                    "left": {
+                      "kind": "identifier",
+                      "name": "Result",
+                      "typeArguments": [],
+                      "arguments": [],
+                      "items": [],
+                      "entries": [],
+                      "source": {
+                        "line": 14,
+                        "column": 27
+                      }
+                    },
+                    "right": {
+                      "kind": "literal",
+                      "type": "int",
+                      "value": 0,
+                      "typeArguments": [],
+                      "arguments": [],
+                      "items": [],
+                      "entries": [],
+                      "source": {
+                        "line": 14,
+                        "column": 36
+                      }
+                    },
+                    "items": [],
+                    "entries": [],
+                    "source": {
+                      "line": 14,
+                      "column": 27
+                    }
+                  },
+                  "items": [],
+                  "entries": [],
+                  "source": {
+                    "line": 14,
+                    "column": 12
+                  }
+                },
+                "then": {
+                  "kind": "block",
+                  "statements": [
+                    {
+                      "kind": "expression",
+                      "expression": {
+                        "kind": "call",
+                        "name": "print",
+                        "typeArguments": [],
+                        "arguments": [
+                          {
+                            "kind": "literal",
+                            "type": "string",
+                            "value": "fast",
+                            "typeArguments": [],
+                            "arguments": [],
+                            "items": [],
+                            "entries": [],
+                            "source": {
+                              "line": 15,
+                              "column": 18
+                            }
+                          }
+                        ],
+                        "items": [],
+                        "entries": [],
+                        "source": {
+                          "line": 15,
+                          "column": 12
+                        }
+                      },
+                      "statements": [],
+                      "source": {
+                        "line": 15,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "source": {
+                    "line": 14,
+                    "column": 39
+                  }
+                },
+                "else": {
+                  "kind": "block",
+                  "statements": [
+                    {
+                      "kind": "expression",
+                      "expression": {
+                        "kind": "call",
+                        "name": "print",
+                        "typeArguments": [],
+                        "arguments": [
+                          {
+                            "kind": "literal",
+                            "type": "string",
+                            "value": "slow",
+                            "typeArguments": [],
+                            "arguments": [],
+                            "items": [],
+                            "entries": [],
+                            "source": {
+                              "line": 17,
+                              "column": 18
+                            }
+                          }
+                        ],
+                        "items": [],
+                        "entries": [],
+                        "source": {
+                          "line": 17,
+                          "column": 12
+                        }
+                      },
+                      "statements": [],
+                      "source": {
+                        "line": 17,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "source": {
+                    "line": 16,
+                    "column": 15
+                  }
+                },
+                "statements": [],
+                "source": {
+                  "line": 14,
+                  "column": 8
+                }
+              },
+              {
+                "kind": "while",
+                "condition": {
+                  "kind": "binary",
+                  "op": "<",
+                  "typeArguments": [],
+                  "arguments": [],
+                  "left": {
+                    "kind": "identifier",
+                    "name": "Result",
+                    "typeArguments": [],
+                    "arguments": [],
+                    "items": [],
+                    "entries": [],
+                    "source": {
+                      "line": 20,
+                      "column": 15
+                    }
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "type": "int",
+                    "value": 3,
+                    "typeArguments": [],
+                    "arguments": [],
+                    "items": [],
+                    "entries": [],
+                    "source": {
+                      "line": 20,
+                      "column": 24
+                    }
+                  },
+                  "items": [],
+                  "entries": [],
+                  "source": {
+                    "line": 20,
+                    "column": 15
+                  }
+                },
+                "body": {
+                  "kind": "block",
+                  "statements": [
+                    {
+                      "kind": "expression",
+                      "expression": {
+                        "kind": "binary",
+                        "op": "+=",
+                        "typeArguments": [],
+                        "arguments": [],
+                        "left": {
+                          "kind": "identifier",
+                          "name": "Result",
+                          "typeArguments": [],
+                          "arguments": [],
+                          "items": [],
+                          "entries": [],
+                          "source": {
+                            "line": 21,
+                            "column": 12
+                          }
+                        },
+                        "right": {
+                          "kind": "literal",
+                          "type": "int",
+                          "value": 1,
+                          "typeArguments": [],
+                          "arguments": [],
+                          "items": [],
+                          "entries": [],
+                          "source": {
+                            "line": 21,
+                            "column": 22
+                          }
+                        },
+                        "items": [],
+                        "entries": [],
+                        "source": {
+                          "line": 21,
+                          "column": 12
+                        }
+                      },
+                      "statements": [],
+                      "source": {
+                        "line": 21,
+                        "column": 12
+                      }
+                    },
+                    {
+                      "kind": "if",
+                      "condition": {
+                        "kind": "binary",
+                        "op": "==",
+                        "typeArguments": [],
+                        "arguments": [],
+                        "left": {
+                          "kind": "identifier",
+                          "name": "Result",
+                          "typeArguments": [],
+                          "arguments": [],
+                          "items": [],
+                          "entries": [],
+                          "source": {
+                            "line": 22,
+                            "column": 16
+                          }
+                        },
+                        "right": {
+                          "kind": "literal",
+                          "type": "int",
+                          "value": 2,
+                          "typeArguments": [],
+                          "arguments": [],
+                          "items": [],
+                          "entries": [],
+                          "source": {
+                            "line": 22,
+                            "column": 26
+                          }
+                        },
+                        "items": [],
+                        "entries": [],
+                        "source": {
+                          "line": 22,
+                          "column": 16
+                        }
+                      },
+                      "then": {
+                        "kind": "block",
+                        "statements": [
+                          {
+                            "kind": "continue",
+                            "statements": [],
+                            "source": {
+                              "line": 23,
+                              "column": 16
+                            }
+                          }
+                        ],
+                        "source": {
+                          "line": 22,
+                          "column": 29
+                        }
+                      },
+                      "statements": [],
+                      "source": {
+                        "line": 22,
+                        "column": 12
+                      }
+                    },
+                    {
+                      "kind": "break",
+                      "statements": [],
+                      "source": {
+                        "line": 25,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "source": {
+                    "line": 20,
+                    "column": 27
+                  }
+                },
+                "statements": [],
+                "source": {
+                  "line": 20,
+                  "column": 8
+                }
+              }
+            ],
+            "source": {
+              "line": 6,
+              "column": 56
+            }
+          },
+          "source": {
+            "line": 6,
+            "column": 4
+          }
+        },
+        {
+          "name": "ShouldOpen",
+          "kind": "pure",
+          "returnType": "bool",
+          "parameters": [],
+          "body": {
+            "kind": "block",
+            "statements": [
+              {
+                "kind": "return",
+                "value": {
+                  "kind": "conditional",
+                  "typeArguments": [],
+                  "arguments": [],
+                  "condition": {
+                    "kind": "identifier",
+                    "name": "IsOpen",
+                    "typeArguments": [],
+                    "arguments": [],
+                    "items": [],
+                    "entries": [],
+                    "source": {
+                      "line": 30,
+                      "column": 15
+                    }
+                  },
+                  "then": {
+                    "kind": "literal",
+                    "type": "bool",
+                    "value": true,
+                    "typeArguments": [],
+                    "arguments": [],
+                    "items": [],
+                    "entries": [],
+                    "source": {
+                      "line": 30,
+                      "column": 24
+                    }
+                  },
+                  "else": {
+                    "kind": "binary",
+                    "op": ">",
+                    "typeArguments": [],
+                    "arguments": [],
+                    "left": {
+                      "kind": "identifier",
+                      "name": "OpenAngle",
+                      "typeArguments": [],
+                      "arguments": [],
+                      "items": [],
+                      "entries": [],
+                      "source": {
+                        "line": 30,
+                        "column": 31
+                      }
+                    },
+                    "right": {
+                      "kind": "literal",
+                      "type": "float",
+                      "value": 45,
+                      "typeArguments": [],
+                      "arguments": [],
+                      "items": [],
+                      "entries": [],
+                      "source": {
+                        "line": 30,
+                        "column": 43
+                      }
+                    },
+                    "items": [],
+                    "entries": [],
+                    "source": {
+                      "line": 30,
+                      "column": 31
+                    }
+                  },
+                  "items": [],
+                  "entries": [],
+                  "source": {
+                    "line": 30,
+                    "column": 15
+                  }
+                },
+                "statements": [],
+                "source": {
+                  "line": 30,
+                  "column": 8
+                }
+              }
+            ],
+            "source": {
+              "line": 29,
+              "column": 27
+            }
+          },
+          "source": {
+            "line": 29,
+            "column": 4
+          }
+        }
+      ],
+      "source": {
+        "line": 1,
+        "column": 0
+      }
+    }
+  ]
+}

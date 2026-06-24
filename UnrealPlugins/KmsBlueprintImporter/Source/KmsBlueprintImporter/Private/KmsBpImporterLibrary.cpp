@@ -13,6 +13,19 @@
 #include "Engine/SimpleConstructionScript.h"
 #include "FileHelpers.h"
 #include "GameFramework/Actor.h"
+#include "K2Node_CallArrayFunction.h"
+#include "K2Node_FunctionEntry.h"
+#include "K2Node_FunctionResult.h"
+#include "K2Node_CallFunction.h"
+#include "K2Node_IfThenElse.h"
+#include "K2Node_KmsGeneratedNode.h"
+#include "K2Node_MacroInstance.h"
+#include "K2Node_MakeArray.h"
+#include "K2Node_VariableGet.h"
+#include "K2Node_VariableSet.h"
+#include "Kismet/KismetArrayLibrary.h"
+#include "Kismet/KismetMathLibrary.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/FileHelper.h"
@@ -26,6 +39,7 @@ namespace
 {
 constexpr const TCHAR* KmsBpSchemaVersion = TEXT("kms-bp-export-v1");
 constexpr const TCHAR* KmsGeneratedCommentPrefix = TEXT("[KMS-BP]");
+constexpr const TCHAR* KmsGeneratedNodePrefix = TEXT("[KMS-BP NODE]");
 
 struct FKmsBpJsonProperty
 {
@@ -214,6 +228,12 @@ static bool TryGetAssetReference(const TSharedPtr<FJsonObject>& Expression, FStr
 }
 
 static FString ExpressionToText(const TSharedPtr<FJsonObject>& Expression);
+static FString StatementToText(const TSharedPtr<FJsonObject>& Statement, int32 Indent = 0);
+static UK2Node_FunctionEntry* FindFunctionEntryNode(UEdGraph* Graph);
+static UK2Node_FunctionResult* FindFunctionResultNode(UEdGraph* Graph);
+static bool ResolvePinType(const FString& TypeText, FEdGraphPinType& OutPinType, FKmsBpImportResult& Result, bool bIsReference);
+static FString DefaultValueToString(const TSharedPtr<FJsonObject>& Initializer);
+static void MaterializeExpressionNodes(UEdGraph* Graph, const TSharedPtr<FJsonObject>& Expression, int32 Depth, int32& NextY);
 
 static FString JsonValueToText(const TSharedPtr<FJsonValue>& Value)
 {
@@ -239,6 +259,22 @@ static FString JsonValueToText(const TSharedPtr<FJsonValue>& Value)
     }
 }
 
+static FString ExpressionArrayToText(const TArray<TSharedPtr<FJsonValue>>& Values, const FString& Separator)
+{
+    TArray<FString> Items;
+    for (const TSharedPtr<FJsonValue>& Value : Values)
+    {
+        Items.Add(ExpressionToText(Value.IsValid() ? Value->AsObject() : nullptr));
+    }
+    return FString::Join(Items, *Separator);
+}
+
+static FString ExpressionItemsToText(const TSharedPtr<FJsonObject>& Expression, const TCHAR* FieldName, const FString& Separator)
+{
+    const TArray<TSharedPtr<FJsonValue>>* Items = nullptr;
+    return GetArrayField(Expression, FieldName, Items) ? ExpressionArrayToText(*Items, Separator) : TEXT("");
+}
+
 static FString ExpressionToText(const TSharedPtr<FJsonObject>& Expression)
 {
     if (!Expression.IsValid())
@@ -260,16 +296,6 @@ static FString ExpressionToText(const TSharedPtr<FJsonObject>& Expression)
 
     if (Kind.Equals(TEXT("call"), ESearchCase::IgnoreCase))
     {
-        TArray<FString> ArgumentTexts;
-        const TArray<TSharedPtr<FJsonValue>>* Arguments = nullptr;
-        if (GetArrayField(Expression, TEXT("arguments"), Arguments))
-        {
-            for (const TSharedPtr<FJsonValue>& Argument : *Arguments)
-            {
-                ArgumentTexts.Add(ExpressionToText(Argument.IsValid() ? Argument->AsObject() : nullptr));
-            }
-        }
-
         FString TypeSuffix;
         const TArray<TSharedPtr<FJsonValue>>* TypeArguments = nullptr;
         if (GetArrayField(Expression, TEXT("typeArguments"), TypeArguments) && TypeArguments->Num() > 0)
@@ -286,7 +312,11 @@ static FString ExpressionToText(const TSharedPtr<FJsonObject>& Expression)
             TypeSuffix = FString::Printf(TEXT("<%s>"), *FString::Join(Types, TEXT(", ")));
         }
 
-        return FString::Printf(TEXT("%s%s(%s"), *GetStringField(Expression, TEXT("name")), *TypeSuffix, *FString::Join(ArgumentTexts, TEXT(", "))) + TEXT(")");
+        return FString::Printf(
+            TEXT("%s%s(%s)"),
+            *GetStringField(Expression, TEXT("name")),
+            *TypeSuffix,
+            *ExpressionItemsToText(Expression, TEXT("arguments"), TEXT(", ")));
     }
 
     if (Kind.Equals(TEXT("binary"), ESearchCase::IgnoreCase))
@@ -300,7 +330,25 @@ static FString ExpressionToText(const TSharedPtr<FJsonObject>& Expression)
 
     if (Kind.Equals(TEXT("unary"), ESearchCase::IgnoreCase))
     {
-        return FString::Printf(TEXT("%s%s"), *GetStringField(Expression, TEXT("op")), *ExpressionToText(GetObjectField(Expression, TEXT("operand"))));
+        const FString Op = GetStringField(Expression, TEXT("op"));
+        const FString Operand = ExpressionToText(GetObjectField(Expression, TEXT("operand")));
+        if (Op.Equals(TEXT("post++"), ESearchCase::IgnoreCase))
+        {
+            return Operand + TEXT("++");
+        }
+        if (Op.Equals(TEXT("post--"), ESearchCase::IgnoreCase))
+        {
+            return Operand + TEXT("--");
+        }
+        if (Op.Equals(TEXT("++pre"), ESearchCase::IgnoreCase))
+        {
+            return TEXT("++") + Operand;
+        }
+        if (Op.Equals(TEXT("--pre"), ESearchCase::IgnoreCase))
+        {
+            return TEXT("--") + Operand;
+        }
+        return FString::Printf(TEXT("%s%s"), *Op, *Operand);
     }
 
     if (Kind.Equals(TEXT("member"), ESearchCase::IgnoreCase))
@@ -312,10 +360,106 @@ static FString ExpressionToText(const TSharedPtr<FJsonObject>& Expression)
             *ExpressionToText(GetObjectField(Expression, TEXT("member"))));
     }
 
+    if (Kind.Equals(TEXT("subscript"), ESearchCase::IgnoreCase))
+    {
+        return FString::Printf(
+            TEXT("%s[%s]"),
+            *ExpressionToText(GetObjectField(Expression, TEXT("context"))),
+            *ExpressionToText(GetObjectField(Expression, TEXT("index"))));
+    }
+
+    if (Kind.Equals(TEXT("cast"), ESearchCase::IgnoreCase))
+    {
+        return FString::Printf(
+            TEXT("(%s)%s"),
+            *GetStringField(Expression, TEXT("type")),
+            *ExpressionToText(GetObjectField(Expression, TEXT("operand"))));
+    }
+
+    if (Kind.Equals(TEXT("typeof"), ESearchCase::IgnoreCase))
+    {
+        return FString::Printf(TEXT("typeof(%s)"), *GetStringField(Expression, TEXT("type")));
+    }
+
+    if (Kind.Equals(TEXT("conditional"), ESearchCase::IgnoreCase))
+    {
+        return FString::Printf(
+            TEXT("%s ? %s : %s"),
+            *ExpressionToText(GetObjectField(Expression, TEXT("condition"))),
+            *ExpressionToText(GetObjectField(Expression, TEXT("then"))),
+            *ExpressionToText(GetObjectField(Expression, TEXT("else"))));
+    }
+
+    if (Kind.Equals(TEXT("array"), ESearchCase::IgnoreCase))
+    {
+        return TEXT("[") + ExpressionItemsToText(Expression, TEXT("items"), TEXT(", ")) + TEXT("]");
+    }
+
+    if (Kind.Equals(TEXT("initializer"), ESearchCase::IgnoreCase))
+    {
+        return TEXT("{ ") + ExpressionItemsToText(Expression, TEXT("items"), TEXT(", ")) + TEXT(" }");
+    }
+
+    if (Kind.Equals(TEXT("object"), ESearchCase::IgnoreCase))
+    {
+        TArray<FString> EntryTexts;
+        const TArray<TSharedPtr<FJsonValue>>* Entries = nullptr;
+        if (GetArrayField(Expression, TEXT("entries"), Entries))
+        {
+            for (const TSharedPtr<FJsonValue>& EntryValue : *Entries)
+            {
+                const TSharedPtr<FJsonObject> Entry = EntryValue.IsValid() ? EntryValue->AsObject() : nullptr;
+                EntryTexts.Add(FString::Printf(
+                    TEXT("%s: %s"),
+                    *ExpressionToText(GetObjectField(Entry, TEXT("key"))),
+                    *ExpressionToText(GetObjectField(Entry, TEXT("value")))));
+            }
+        }
+        return TEXT("{ ") + FString::Join(EntryTexts, TEXT(", ")) + TEXT(" }");
+    }
+
+    if (Kind.Equals(TEXT("new"), ESearchCase::IgnoreCase))
+    {
+        return FString::Printf(
+            TEXT("new %s { %s }"),
+            *GetStringField(Expression, TEXT("type")),
+            *ExpressionItemsToText(Expression, TEXT("items"), TEXT(", ")));
+    }
+
     return Kind.IsEmpty() ? TEXT("<expression>") : Kind;
 }
 
-static FString StatementToText(const TSharedPtr<FJsonObject>& Statement, int32 Indent = 0)
+static FString StatementBodyToText(const TSharedPtr<FJsonObject>& Statement, int32 Indent)
+{
+    const FString Padding = FString::ChrN(Indent * 4, TCHAR(' '));
+    if (!Statement.IsValid())
+    {
+        return TEXT("{\n") + Padding + TEXT("}");
+    }
+
+    const FString Kind = GetStringField(Statement, TEXT("kind"));
+    if (Kind.Equals(TEXT("block"), ESearchCase::IgnoreCase))
+    {
+        TArray<FString> Lines;
+        const TArray<TSharedPtr<FJsonValue>>* Statements = nullptr;
+        if (GetArrayField(Statement, TEXT("statements"), Statements))
+        {
+            for (const TSharedPtr<FJsonValue>& Child : *Statements)
+            {
+                Lines.Add(StatementToText(Child.IsValid() ? Child->AsObject() : nullptr, Indent + 1));
+            }
+        }
+
+        const FString Body = FString::Join(Lines, TEXT("\n"));
+        return Body.IsEmpty()
+            ? TEXT("{\n") + Padding + TEXT("}")
+            : TEXT("{\n") + Body + TEXT("\n") + Padding + TEXT("}");
+    }
+
+    return TEXT("{\n") + StatementToText(Statement, Indent + 1) + TEXT("\n") + Padding + TEXT("}");
+}
+
+static FString StatementToText(const TSharedPtr<FJsonObject>& Statement, int32 Indent)
 {
     if (!Statement.IsValid())
     {
@@ -346,12 +490,22 @@ static FString StatementToText(const TSharedPtr<FJsonObject>& Statement, int32 I
 
     if (Kind.Equals(TEXT("var"), ESearchCase::IgnoreCase))
     {
+        const TSharedPtr<FJsonObject> Initializer = GetObjectField(Statement, TEXT("initializer"));
+        if (!Initializer.IsValid())
+        {
+            return FString::Printf(
+                TEXT("%svar %s: %s;"),
+                *Padding,
+                *GetStringField(Statement, TEXT("name")),
+                *GetStringField(Statement, TEXT("type")));
+        }
+
         return FString::Printf(
             TEXT("%svar %s: %s = %s;"),
             *Padding,
             *GetStringField(Statement, TEXT("name")),
             *GetStringField(Statement, TEXT("type")),
-            *ExpressionToText(GetObjectField(Statement, TEXT("initializer"))));
+            *ExpressionToText(Initializer));
     }
 
     if (Kind.Equals(TEXT("return"), ESearchCase::IgnoreCase))
@@ -362,7 +516,1386 @@ static FString StatementToText(const TSharedPtr<FJsonObject>& Statement, int32 I
             : Padding + TEXT("return;");
     }
 
+    if (Kind.Equals(TEXT("if"), ESearchCase::IgnoreCase))
+    {
+        FString Text = FString::Printf(
+            TEXT("%sif (%s) %s"),
+            *Padding,
+            *ExpressionToText(GetObjectField(Statement, TEXT("condition"))),
+            *StatementBodyToText(GetObjectField(Statement, TEXT("then")), Indent));
+
+        const TSharedPtr<FJsonObject> Else = GetObjectField(Statement, TEXT("else"));
+        if (Else.IsValid())
+        {
+            Text += TEXT(" else ") + StatementBodyToText(Else, Indent);
+        }
+        return Text;
+    }
+
+    if (Kind.Equals(TEXT("while"), ESearchCase::IgnoreCase))
+    {
+        return FString::Printf(
+            TEXT("%swhile (%s) %s"),
+            *Padding,
+            *ExpressionToText(GetObjectField(Statement, TEXT("condition"))),
+            *StatementBodyToText(GetObjectField(Statement, TEXT("body")), Indent));
+    }
+
+    if (Kind.Equals(TEXT("break"), ESearchCase::IgnoreCase))
+    {
+        return Padding + TEXT("break;");
+    }
+
+    if (Kind.Equals(TEXT("continue"), ESearchCase::IgnoreCase))
+    {
+        return Padding + TEXT("continue;");
+    }
+
     return Padding + Kind;
+}
+
+static UK2Node_KmsGeneratedNode* SpawnGeneratedKmsNode(
+    UEdGraph* Graph,
+    const bool bStatement,
+    const FString& Kind,
+    const FString& Text,
+    const int32 X,
+    const int32 Y)
+{
+    if (Graph == nullptr)
+    {
+        return nullptr;
+    }
+
+    UK2Node_KmsGeneratedNode* Node = NewObject<UK2Node_KmsGeneratedNode>(Graph);
+    Node->Kind = Kind;
+    Node->Text = Text;
+    Node->bStatement = bStatement;
+    Node->CreateNewGuid();
+    Node->PostPlacedNewNode();
+    Node->SetFlags(RF_Transactional);
+    Node->AllocateDefaultPins();
+    Node->NodePosX = X;
+    Node->NodePosY = Y;
+    Node->NodeComment = FString::Printf(TEXT("%s %s"), KmsGeneratedNodePrefix, *Kind);
+
+    UEdGraphSchema_K2::SetNodeMetaData(Node, FNodeMetadata::DefaultGraphNode);
+    Graph->AddNode(Node, true, false);
+    return Node;
+}
+
+static bool IsGeneratedKmsNode(const UEdGraphNode* Node)
+{
+    return Node != nullptr && Node->NodeComment.StartsWith(KmsGeneratedNodePrefix);
+}
+
+static void MarkGeneratedKmsNode(UEdGraphNode* Node, const FString& Kind)
+{
+    if (Node != nullptr)
+    {
+        Node->NodeComment = FString::Printf(TEXT("%s %s"), KmsGeneratedNodePrefix, *Kind);
+    }
+}
+
+static void ClearGeneratedKmsNodes(UEdGraph* Graph)
+{
+    if (Graph == nullptr)
+    {
+        return;
+    }
+
+    TArray<UEdGraphNode*> NodesToRemove;
+    for (UEdGraphNode* Node : Graph->Nodes)
+    {
+        if (IsGeneratedKmsNode(Node))
+        {
+            NodesToRemove.Add(Node);
+        }
+    }
+
+    for (UEdGraphNode* Node : NodesToRemove)
+    {
+        Graph->RemoveNode(Node);
+    }
+}
+
+static void TryConnectExecPins(UEdGraph* Graph, UEdGraphPin*& ExecTail, UK2Node_KmsGeneratedNode* Node)
+{
+    if (Graph == nullptr || ExecTail == nullptr || Node == nullptr)
+    {
+        return;
+    }
+
+    UEdGraphPin* ExecutePin = Node->FindPin(UEdGraphSchema_K2::PN_Execute);
+    UEdGraphPin* ThenPin = Node->FindPin(UEdGraphSchema_K2::PN_Then);
+    if (ExecutePin == nullptr || ThenPin == nullptr)
+    {
+        return;
+    }
+
+    if (const UEdGraphSchema_K2* K2Schema = Cast<const UEdGraphSchema_K2>(Graph->GetSchema()))
+    {
+        K2Schema->TryCreateConnection(ExecTail, ExecutePin);
+    }
+    ExecTail = ThenPin;
+}
+
+struct FKmsBpNativeGenContext
+{
+    UBlueprint* Blueprint = nullptr;
+    UEdGraph* Graph = nullptr;
+    const UEdGraphSchema_K2* K2Schema = nullptr;
+    FKmsBpImportResult* ImportResult = nullptr;
+    TMap<FString, FString> VariableTypes;
+    TMap<FString, FString> VariableAliases;
+    TSet<FString> LocalVariables;
+    int32 NextExpressionY = 380;
+};
+
+static TArray<UEdGraphPin*> MakeExecTails(UEdGraphPin* Tail)
+{
+    TArray<UEdGraphPin*> Tails;
+    if (Tail != nullptr)
+    {
+        Tails.Add(Tail);
+    }
+    return Tails;
+}
+
+static FString ResolveGeneratedVariableName(const FKmsBpNativeGenContext& Context, const FString& Name)
+{
+    if (const FString* Alias = Context.VariableAliases.Find(Name))
+    {
+        return *Alias;
+    }
+    return Name;
+}
+
+static FString NormalizeKmsType(FString TypeText)
+{
+    TypeText.TrimStartAndEndInline();
+    if (TypeText.Equals(TEXT("int32"), ESearchCase::IgnoreCase))
+    {
+        return TEXT("int");
+    }
+    if (TypeText.Equals(TEXT("boolean"), ESearchCase::IgnoreCase))
+    {
+        return TEXT("bool");
+    }
+    return TypeText;
+}
+
+static bool IsFloatLikeType(const FString& TypeText)
+{
+    return TypeText.Equals(TEXT("float"), ESearchCase::IgnoreCase)
+        || TypeText.Equals(TEXT("double"), ESearchCase::IgnoreCase);
+}
+
+static bool IsIntLikeType(const FString& TypeText)
+{
+    return TypeText.Equals(TEXT("int"), ESearchCase::IgnoreCase)
+        || TypeText.Equals(TEXT("int64"), ESearchCase::IgnoreCase)
+        || TypeText.Equals(TEXT("uint32"), ESearchCase::IgnoreCase)
+        || TypeText.Equals(TEXT("uint64"), ESearchCase::IgnoreCase)
+        || TypeText.Equals(TEXT("byte"), ESearchCase::IgnoreCase);
+}
+
+static bool TryGetArrayElementType(FString TypeText, FString& OutElementType)
+{
+    TypeText.TrimStartAndEndInline();
+    if (TypeText.StartsWith(TEXT("Array<")) && TypeText.EndsWith(TEXT(">")))
+    {
+        OutElementType = TypeText.Mid(6, TypeText.Len() - 7);
+        OutElementType.TrimStartAndEndInline();
+        return !OutElementType.IsEmpty();
+    }
+    if (TypeText.EndsWith(TEXT("[]")))
+    {
+        OutElementType = TypeText.LeftChop(2);
+        OutElementType.TrimStartAndEndInline();
+        return !OutElementType.IsEmpty();
+    }
+    return false;
+}
+
+static FString InferExpressionType(const FKmsBpNativeGenContext& Context, const TSharedPtr<FJsonObject>& Expression)
+{
+    if (!Expression.IsValid())
+    {
+        return FString();
+    }
+
+    const FString Kind = GetStringField(Expression, TEXT("kind"));
+    if (Kind.Equals(TEXT("literal"), ESearchCase::IgnoreCase))
+    {
+        return NormalizeKmsType(GetStringField(Expression, TEXT("type")));
+    }
+    if (Kind.Equals(TEXT("array"), ESearchCase::IgnoreCase))
+    {
+        const TArray<TSharedPtr<FJsonValue>>* Items = nullptr;
+        if (GetArrayField(Expression, TEXT("items"), Items) && Items->Num() > 0)
+        {
+            const FString ElementType = InferExpressionType(Context, (*Items)[0].IsValid() ? (*Items)[0]->AsObject() : nullptr);
+            if (!ElementType.IsEmpty())
+            {
+                return FString::Printf(TEXT("Array<%s>"), *ElementType);
+            }
+        }
+        return FString();
+    }
+    if (Kind.Equals(TEXT("identifier"), ESearchCase::IgnoreCase))
+    {
+        if (const FString* Type = Context.VariableTypes.Find(ResolveGeneratedVariableName(Context, GetStringField(Expression, TEXT("name")))))
+        {
+            return NormalizeKmsType(*Type);
+        }
+        return FString();
+    }
+    if (Kind.Equals(TEXT("cast"), ESearchCase::IgnoreCase) || Kind.Equals(TEXT("typeof"), ESearchCase::IgnoreCase))
+    {
+        return NormalizeKmsType(GetStringField(Expression, TEXT("type")));
+    }
+    if (Kind.Equals(TEXT("subscript"), ESearchCase::IgnoreCase))
+    {
+        FString ContextType = InferExpressionType(Context, GetObjectField(Expression, TEXT("context")));
+        ContextType.TrimStartAndEndInline();
+        if (ContextType.StartsWith(TEXT("Array<")) && ContextType.EndsWith(TEXT(">")))
+        {
+            return NormalizeKmsType(ContextType.Mid(6, ContextType.Len() - 7));
+        }
+        return FString();
+    }
+    if (Kind.Equals(TEXT("binary"), ESearchCase::IgnoreCase))
+    {
+        const FString Op = GetStringField(Expression, TEXT("op"));
+        if (Op.Equals(TEXT("&&")) || Op.Equals(TEXT("||")) || Op.Equals(TEXT("==")) || Op.Equals(TEXT("!="))
+            || Op.Equals(TEXT("<")) || Op.Equals(TEXT("<=")) || Op.Equals(TEXT(">")) || Op.Equals(TEXT(">=")))
+        {
+            return TEXT("bool");
+        }
+        const FString LeftType = InferExpressionType(Context, GetObjectField(Expression, TEXT("left")));
+        const FString RightType = InferExpressionType(Context, GetObjectField(Expression, TEXT("right")));
+        return IsFloatLikeType(LeftType) || IsFloatLikeType(RightType) ? TEXT("float") : TEXT("int");
+    }
+    if (Kind.Equals(TEXT("unary"), ESearchCase::IgnoreCase))
+    {
+        return GetStringField(Expression, TEXT("op")).Equals(TEXT("!"), ESearchCase::CaseSensitive)
+            ? TEXT("bool")
+            : InferExpressionType(Context, GetObjectField(Expression, TEXT("operand")));
+    }
+    if (Kind.Equals(TEXT("conditional"), ESearchCase::IgnoreCase))
+    {
+        return InferExpressionType(Context, GetObjectField(Expression, TEXT("then")));
+    }
+
+    return FString();
+}
+
+static UFunction* FindKismetMathFunction(const TCHAR* Name)
+{
+    return UKismetMathLibrary::StaticClass()->FindFunctionByName(FName(Name));
+}
+
+static UFunction* FindKismetSystemFunction(const TCHAR* Name)
+{
+    return UKismetSystemLibrary::StaticClass()->FindFunctionByName(FName(Name));
+}
+
+static UFunction* FindKismetArrayFunction(const TCHAR* Name)
+{
+    return UKismetArrayLibrary::StaticClass()->FindFunctionByName(FName(Name));
+}
+
+static UEdGraphPin* FindPinByName(UEdGraphNode* Node, const TCHAR* PinName)
+{
+    return Node != nullptr ? Node->FindPin(FName(PinName)) : nullptr;
+}
+
+static UEdGraphPin* FindPinByDirection(UEdGraphNode* Node, EEdGraphPinDirection Direction, FName ExcludedPinName = NAME_None)
+{
+    if (Node == nullptr)
+    {
+        return nullptr;
+    }
+
+    for (UEdGraphPin* Pin : Node->Pins)
+    {
+        if (Pin != nullptr && Pin->Direction == Direction && Pin->PinName != ExcludedPinName)
+        {
+            return Pin;
+        }
+    }
+    return nullptr;
+}
+
+static UEdGraphPin* FindExecPinByName(UEdGraphNode* Node, FName PinName, EEdGraphPinDirection Direction)
+{
+    if (Node == nullptr)
+    {
+        return nullptr;
+    }
+
+    for (UEdGraphPin* Pin : Node->Pins)
+    {
+        if (Pin != nullptr && Pin->Direction == Direction && Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec && Pin->PinName == PinName)
+        {
+            return Pin;
+        }
+    }
+    return nullptr;
+}
+
+static bool TryConnectPins(const FKmsBpNativeGenContext& Context, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin)
+{
+    return Context.K2Schema != nullptr
+        && SourcePin != nullptr
+        && TargetPin != nullptr
+        && Context.K2Schema->TryCreateConnection(SourcePin, TargetPin);
+}
+
+static void AddGeneratedNodeToGraph(UEdGraph* Graph, UEdGraphNode* Node, const FString& Kind, int32 X, int32 Y)
+{
+    if (Graph == nullptr || Node == nullptr)
+    {
+        return;
+    }
+
+    Node->CreateNewGuid();
+    Node->PostPlacedNewNode();
+    Node->SetFlags(RF_Transactional);
+    Node->AllocateDefaultPins();
+    Node->NodePosX = X;
+    Node->NodePosY = Y;
+    MarkGeneratedKmsNode(Node, Kind);
+    UEdGraphSchema_K2::SetNodeMetaData(Node, FNodeMetadata::DefaultGraphNode);
+    Graph->AddNode(Node, true, false);
+}
+
+static UK2Node_CallFunction* SpawnCallFunctionNode(FKmsBpNativeGenContext& Context, UFunction* Function, const FString& Kind, int32 X, int32 Y)
+{
+    if (Context.Graph == nullptr || Function == nullptr)
+    {
+        return nullptr;
+    }
+
+    UK2Node_CallFunction* Node = NewObject<UK2Node_CallFunction>(Context.Graph);
+    Node->SetFromFunction(Function);
+    AddGeneratedNodeToGraph(Context.Graph, Node, Kind, X, Y);
+    Node->ReconstructNode();
+    return Node;
+}
+
+static UK2Node_CallArrayFunction* SpawnCallArrayFunctionNode(FKmsBpNativeGenContext& Context, UFunction* Function, const FString& Kind, int32 X, int32 Y)
+{
+    if (Context.Graph == nullptr || Function == nullptr)
+    {
+        return nullptr;
+    }
+
+    UK2Node_CallArrayFunction* Node = NewObject<UK2Node_CallArrayFunction>(Context.Graph);
+    Node->SetFromFunction(Function);
+    AddGeneratedNodeToGraph(Context.Graph, Node, Kind, X, Y);
+    Node->ReconstructNode();
+    return Node;
+}
+
+static UEdGraph* LoadStandardMacroGraph(const TCHAR* MacroName)
+{
+    UBlueprint* StandardMacros = LoadObject<UBlueprint>(
+        nullptr,
+        TEXT("/Engine/EditorBlueprintResources/StandardMacros.StandardMacros"));
+    if (StandardMacros == nullptr)
+    {
+        return nullptr;
+    }
+
+    for (UEdGraph* MacroGraph : StandardMacros->MacroGraphs)
+    {
+        if (MacroGraph != nullptr && MacroGraph->GetName().Equals(MacroName, ESearchCase::CaseSensitive))
+        {
+            return MacroGraph;
+        }
+    }
+
+    return nullptr;
+}
+
+static UK2Node_MacroInstance* SpawnStandardMacroNode(FKmsBpNativeGenContext& Context, const TCHAR* MacroName, const FString& Kind, int32 X, int32 Y)
+{
+    UEdGraph* MacroGraph = LoadStandardMacroGraph(MacroName);
+    if (Context.Graph == nullptr || MacroGraph == nullptr)
+    {
+        return nullptr;
+    }
+
+    UK2Node_MacroInstance* Node = NewObject<UK2Node_MacroInstance>(Context.Graph);
+    Node->SetMacroGraph(MacroGraph);
+    AddGeneratedNodeToGraph(Context.Graph, Node, Kind, X, Y);
+    Node->ReconstructNode();
+    return Node;
+}
+
+static bool TryResolvePinTypeForNativeGen(FKmsBpNativeGenContext& Context, const FString& TypeText, FEdGraphPinType& OutPinType)
+{
+    if (Context.ImportResult == nullptr)
+    {
+        return false;
+    }
+
+    return ResolvePinType(TypeText, OutPinType, *Context.ImportResult, false);
+}
+
+static UK2Node_VariableGet* SpawnVariableGetNode(FKmsBpNativeGenContext& Context, const FString& Name, int32 X, int32 Y)
+{
+    if (Context.Graph == nullptr || Context.Blueprint == nullptr)
+    {
+        return nullptr;
+    }
+
+    const FString GeneratedName = ResolveGeneratedVariableName(Context, Name);
+    UK2Node_VariableGet* Node = NewObject<UK2Node_VariableGet>(Context.Graph);
+    const FName VariableName(*GeneratedName);
+    if (Context.LocalVariables.Contains(GeneratedName))
+    {
+        Node->VariableReference.SetLocalMember(VariableName, Context.Graph->GetName(), FBlueprintEditorUtils::FindLocalVariableGuidByName(Context.Blueprint, Context.Graph, VariableName));
+    }
+    else
+    {
+        Node->VariableReference.SetSelfMember(VariableName, FBlueprintEditorUtils::FindMemberVariableGuidByName(Context.Blueprint, VariableName));
+    }
+
+    AddGeneratedNodeToGraph(Context.Graph, Node, FString::Printf(TEXT("get %s"), *GeneratedName), X, Y);
+    Node->ReconstructNode();
+    return Node;
+}
+
+static UK2Node_VariableSet* SpawnVariableSetNode(FKmsBpNativeGenContext& Context, const FString& Name, int32 X, int32 Y)
+{
+    if (Context.Graph == nullptr || Context.Blueprint == nullptr)
+    {
+        return nullptr;
+    }
+
+    const FString GeneratedName = ResolveGeneratedVariableName(Context, Name);
+    UK2Node_VariableSet* Node = NewObject<UK2Node_VariableSet>(Context.Graph);
+    const FName VariableName(*GeneratedName);
+    if (Context.LocalVariables.Contains(GeneratedName))
+    {
+        Node->VariableReference.SetLocalMember(VariableName, Context.Graph->GetName(), FBlueprintEditorUtils::FindLocalVariableGuidByName(Context.Blueprint, Context.Graph, VariableName));
+    }
+    else
+    {
+        Node->VariableReference.SetSelfMember(VariableName, FBlueprintEditorUtils::FindMemberVariableGuidByName(Context.Blueprint, VariableName));
+    }
+
+    AddGeneratedNodeToGraph(Context.Graph, Node, FString::Printf(TEXT("set %s"), *GeneratedName), X, Y);
+    Node->ReconstructNode();
+    return Node;
+}
+
+static UEdGraphPin* GetVariableSetValuePin(UK2Node_VariableSet* Node)
+{
+    return Node != nullptr ? Node->FindPin(Node->GetVarName(), EGPD_Input) : nullptr;
+}
+
+static bool TrySetPinDefaultFromLiteral(const FKmsBpNativeGenContext& Context, const TSharedPtr<FJsonObject>& Expression, UEdGraphPin* Pin)
+{
+    if (Context.K2Schema == nullptr || Pin == nullptr || !Expression.IsValid()
+        || !GetStringField(Expression, TEXT("kind")).Equals(TEXT("literal"), ESearchCase::IgnoreCase))
+    {
+        return false;
+    }
+
+    const FString DefaultValue = DefaultValueToString(Expression);
+    if (DefaultValue.IsEmpty() && !IsLiteralExpression(Expression, TEXT("string")))
+    {
+        return false;
+    }
+
+    Context.K2Schema->TrySetDefaultValue(*Pin, DefaultValue, false);
+    return true;
+}
+
+static const TCHAR* GetBinaryFunctionName(const FString& Op, const FString& ResultType, const FString& LeftType, const FString& RightType)
+{
+    if (Op.Equals(TEXT("&&"))) return TEXT("BooleanAND");
+    if (Op.Equals(TEXT("||"))) return TEXT("BooleanOR");
+
+    if (LeftType.Equals(TEXT("bool"), ESearchCase::IgnoreCase) || RightType.Equals(TEXT("bool"), ESearchCase::IgnoreCase))
+    {
+        if (Op.Equals(TEXT("=="))) return TEXT("EqualEqual_BoolBool");
+        if (Op.Equals(TEXT("!="))) return TEXT("NotEqual_BoolBool");
+        return nullptr;
+    }
+
+    if (IsFloatLikeType(ResultType) || IsFloatLikeType(LeftType) || IsFloatLikeType(RightType))
+    {
+        if (Op.Equals(TEXT("+"))) return TEXT("Add_DoubleDouble");
+        if (Op.Equals(TEXT("-"))) return TEXT("Subtract_DoubleDouble");
+        if (Op.Equals(TEXT("*"))) return TEXT("Multiply_DoubleDouble");
+        if (Op.Equals(TEXT("/"))) return TEXT("Divide_DoubleDouble");
+        if (Op.Equals(TEXT("<"))) return TEXT("Less_DoubleDouble");
+        if (Op.Equals(TEXT("<="))) return TEXT("LessEqual_DoubleDouble");
+        if (Op.Equals(TEXT(">"))) return TEXT("Greater_DoubleDouble");
+        if (Op.Equals(TEXT(">="))) return TEXT("GreaterEqual_DoubleDouble");
+        if (Op.Equals(TEXT("=="))) return TEXT("EqualEqual_DoubleDouble");
+        if (Op.Equals(TEXT("!="))) return TEXT("NotEqual_DoubleDouble");
+        return nullptr;
+    }
+
+    if (Op.Equals(TEXT("+"))) return TEXT("Add_IntInt");
+    if (Op.Equals(TEXT("-"))) return TEXT("Subtract_IntInt");
+    if (Op.Equals(TEXT("*"))) return TEXT("Multiply_IntInt");
+    if (Op.Equals(TEXT("/"))) return TEXT("Divide_IntInt");
+    if (Op.Equals(TEXT("<"))) return TEXT("Less_IntInt");
+    if (Op.Equals(TEXT("<="))) return TEXT("LessEqual_IntInt");
+    if (Op.Equals(TEXT(">"))) return TEXT("Greater_IntInt");
+    if (Op.Equals(TEXT(">="))) return TEXT("GreaterEqual_IntInt");
+    if (Op.Equals(TEXT("=="))) return TEXT("EqualEqual_IntInt");
+    if (Op.Equals(TEXT("!="))) return TEXT("NotEqual_IntInt");
+    return nullptr;
+}
+
+static UEdGraphPin* GenerateExpressionPin(FKmsBpNativeGenContext& Context, const TSharedPtr<FJsonObject>& Expression, int32 Depth);
+static UEdGraphPin* GenerateArrayExpressionPin(
+    FKmsBpNativeGenContext& Context,
+    const TSharedPtr<FJsonObject>& Expression,
+    int32 Depth,
+    const FEdGraphPinType* ExpectedArrayType = nullptr);
+
+static bool ConnectExpressionToPin(FKmsBpNativeGenContext& Context, const TSharedPtr<FJsonObject>& Expression, UEdGraphPin* TargetPin, int32 Depth)
+{
+    if (TargetPin == nullptr || !Expression.IsValid())
+    {
+        return false;
+    }
+    if (TrySetPinDefaultFromLiteral(Context, Expression, TargetPin))
+    {
+        return true;
+    }
+    if (GetStringField(Expression, TEXT("kind")).Equals(TEXT("array"), ESearchCase::IgnoreCase))
+    {
+        return TryConnectPins(Context, GenerateArrayExpressionPin(Context, Expression, Depth, &TargetPin->PinType), TargetPin);
+    }
+    return TryConnectPins(Context, GenerateExpressionPin(Context, Expression, Depth), TargetPin);
+}
+
+static UEdGraphPin* GenerateBinaryExpressionPin(FKmsBpNativeGenContext& Context, const TSharedPtr<FJsonObject>& Expression, int32 Depth)
+{
+    const FString Op = GetStringField(Expression, TEXT("op"));
+    if (Op.Equals(TEXT("=")) || Op.Equals(TEXT("+=")) || Op.Equals(TEXT("-=")) || Op.Equals(TEXT("*=")) || Op.Equals(TEXT("/=")))
+    {
+        return nullptr;
+    }
+
+    const TSharedPtr<FJsonObject> Left = GetObjectField(Expression, TEXT("left"));
+    const TSharedPtr<FJsonObject> Right = GetObjectField(Expression, TEXT("right"));
+    const FString LeftType = InferExpressionType(Context, Left);
+    const FString RightType = InferExpressionType(Context, Right);
+    const FString ResultType = InferExpressionType(Context, Expression);
+    const TCHAR* FunctionName = GetBinaryFunctionName(Op, ResultType, LeftType, RightType);
+    if (FunctionName == nullptr)
+    {
+        return nullptr;
+    }
+
+    UK2Node_CallFunction* Node = SpawnCallFunctionNode(Context, FindKismetMathFunction(FunctionName), FString::Printf(TEXT("binary %s"), *Op), 620 + Depth * 260, Context.NextExpressionY);
+    Context.NextExpressionY += 120;
+    if (Node == nullptr)
+    {
+        return nullptr;
+    }
+
+    ConnectExpressionToPin(Context, Left, FindPinByName(Node, TEXT("A")), Depth + 1);
+    ConnectExpressionToPin(Context, Right, FindPinByName(Node, TEXT("B")), Depth + 1);
+    return Node->GetReturnValuePin();
+}
+
+static UEdGraphPin* GenerateArrayExpressionPin(
+    FKmsBpNativeGenContext& Context,
+    const TSharedPtr<FJsonObject>& Expression,
+    int32 Depth,
+    const FEdGraphPinType* ExpectedArrayType)
+{
+    const TArray<TSharedPtr<FJsonValue>>* Items = nullptr;
+    if (!GetArrayField(Expression, TEXT("items"), Items))
+    {
+        return nullptr;
+    }
+
+    UK2Node_MakeArray* Node = NewObject<UK2Node_MakeArray>(Context.Graph);
+    Node->NumInputs = Items->Num();
+    AddGeneratedNodeToGraph(Context.Graph, Node, TEXT("array"), 620 + Depth * 260, Context.NextExpressionY);
+    Context.NextExpressionY += 120;
+
+    UEdGraphPin* OutputPin = Node->GetOutputPin();
+    if (OutputPin == nullptr)
+    {
+        return nullptr;
+    }
+
+    FEdGraphPinType ArrayPinType;
+    if (ExpectedArrayType != nullptr && ExpectedArrayType->ContainerType == EPinContainerType::Array)
+    {
+        ArrayPinType = *ExpectedArrayType;
+    }
+    else
+    {
+        const FString InferredType = InferExpressionType(Context, Expression);
+        if (InferredType.IsEmpty() || !TryResolvePinTypeForNativeGen(Context, InferredType, ArrayPinType))
+        {
+            return OutputPin;
+        }
+    }
+
+    OutputPin->PinType = ArrayPinType;
+    FEdGraphPinType ElementPinType = ArrayPinType;
+    ElementPinType.ContainerType = EPinContainerType::None;
+
+    for (int32 Index = 0; Index < Items->Num(); ++Index)
+    {
+        UEdGraphPin* ItemPin = Node->FindPin(Node->GetPinName(Index), EGPD_Input);
+        if (ItemPin == nullptr)
+        {
+            continue;
+        }
+
+        ItemPin->PinType = ElementPinType;
+        if (Context.K2Schema != nullptr)
+        {
+            Context.K2Schema->SetPinAutogeneratedDefaultValueBasedOnType(ItemPin);
+        }
+        ConnectExpressionToPin(Context, (*Items)[Index].IsValid() ? (*Items)[Index]->AsObject() : nullptr, ItemPin, Depth + 1);
+    }
+
+    return OutputPin;
+}
+
+static UEdGraphPin* GenerateSubscriptExpressionPin(FKmsBpNativeGenContext& Context, const TSharedPtr<FJsonObject>& Expression, int32 Depth)
+{
+    const TSharedPtr<FJsonObject> ArrayExpression = GetObjectField(Expression, TEXT("context"));
+    FString ElementType;
+    if (!TryGetArrayElementType(InferExpressionType(Context, ArrayExpression), ElementType))
+    {
+        return nullptr;
+    }
+
+    UK2Node_CallArrayFunction* Node = SpawnCallArrayFunctionNode(
+        Context,
+        FindKismetArrayFunction(TEXT("Array_Get")),
+        TEXT("subscript"),
+        620 + Depth * 260,
+        Context.NextExpressionY);
+    Context.NextExpressionY += 120;
+    if (Node == nullptr)
+    {
+        return nullptr;
+    }
+
+    UEdGraphPin* ArrayPin = GenerateExpressionPin(Context, ArrayExpression, Depth + 1);
+    UEdGraphPin* TargetArrayPin = Node->GetTargetArrayPin();
+    if (ArrayPin != nullptr)
+    {
+        FEdGraphPinType ElementPinType = ArrayPin->PinType;
+        ElementPinType.ContainerType = EPinContainerType::None;
+        if (TargetArrayPin != nullptr)
+        {
+            TargetArrayPin->PinType = ArrayPin->PinType;
+        }
+        if (UEdGraphPin* ItemPin = FindPinByName(Node, TEXT("Item")))
+        {
+            ItemPin->PinType = ElementPinType;
+        }
+        TryConnectPins(Context, ArrayPin, TargetArrayPin);
+    }
+
+    ConnectExpressionToPin(Context, GetObjectField(Expression, TEXT("index")), FindPinByName(Node, TEXT("Index")), Depth + 1);
+    return FindPinByName(Node, TEXT("Item"));
+}
+
+static UEdGraphPin* GenerateConditionalExpressionPin(FKmsBpNativeGenContext& Context, const TSharedPtr<FJsonObject>& Expression, int32 Depth)
+{
+    const TSharedPtr<FJsonObject> Then = GetObjectField(Expression, TEXT("then"));
+    const TSharedPtr<FJsonObject> Else = GetObjectField(Expression, TEXT("else"));
+    bool BoolValue = false;
+    if (TryGetLiteralBool(Then, BoolValue) && BoolValue)
+    {
+        TSharedPtr<FJsonObject> OrExpression = MakeShared<FJsonObject>();
+        OrExpression->SetStringField(TEXT("kind"), TEXT("binary"));
+        OrExpression->SetStringField(TEXT("op"), TEXT("||"));
+        OrExpression->SetObjectField(TEXT("left"), GetObjectField(Expression, TEXT("condition")));
+        OrExpression->SetObjectField(TEXT("right"), Else);
+        return GenerateBinaryExpressionPin(Context, OrExpression, Depth);
+    }
+
+    if (TryGetLiteralBool(Else, BoolValue) && !BoolValue)
+    {
+        TSharedPtr<FJsonObject> AndExpression = MakeShared<FJsonObject>();
+        AndExpression->SetStringField(TEXT("kind"), TEXT("binary"));
+        AndExpression->SetStringField(TEXT("op"), TEXT("&&"));
+        AndExpression->SetObjectField(TEXT("left"), GetObjectField(Expression, TEXT("condition")));
+        AndExpression->SetObjectField(TEXT("right"), Then);
+        return GenerateBinaryExpressionPin(Context, AndExpression, Depth);
+    }
+
+    return nullptr;
+}
+
+static UEdGraphPin* GenerateExpressionPin(FKmsBpNativeGenContext& Context, const TSharedPtr<FJsonObject>& Expression, int32 Depth)
+{
+    if (!Expression.IsValid())
+    {
+        return nullptr;
+    }
+
+    const FString Kind = GetStringField(Expression, TEXT("kind"));
+    if (Kind.Equals(TEXT("identifier"), ESearchCase::IgnoreCase))
+    {
+        UK2Node_VariableGet* Node = SpawnVariableGetNode(Context, GetStringField(Expression, TEXT("name")), 620 + Depth * 260, Context.NextExpressionY);
+        Context.NextExpressionY += 120;
+        return Node != nullptr ? Node->GetValuePin() : nullptr;
+    }
+    if (Kind.Equals(TEXT("binary"), ESearchCase::IgnoreCase))
+    {
+        return GenerateBinaryExpressionPin(Context, Expression, Depth);
+    }
+    if (Kind.Equals(TEXT("array"), ESearchCase::IgnoreCase))
+    {
+        return GenerateArrayExpressionPin(Context, Expression, Depth);
+    }
+    if (Kind.Equals(TEXT("subscript"), ESearchCase::IgnoreCase))
+    {
+        return GenerateSubscriptExpressionPin(Context, Expression, Depth);
+    }
+    if (Kind.Equals(TEXT("unary"), ESearchCase::IgnoreCase) && GetStringField(Expression, TEXT("op")).Equals(TEXT("!"), ESearchCase::CaseSensitive))
+    {
+        UK2Node_CallFunction* Node = SpawnCallFunctionNode(Context, FindKismetMathFunction(TEXT("Not_PreBool")), TEXT("unary !"), 620 + Depth * 260, Context.NextExpressionY);
+        Context.NextExpressionY += 120;
+        if (Node != nullptr)
+        {
+            ConnectExpressionToPin(Context, GetObjectField(Expression, TEXT("operand")), FindPinByName(Node, TEXT("A")), Depth + 1);
+            return Node->GetReturnValuePin();
+        }
+    }
+    if (Kind.Equals(TEXT("cast"), ESearchCase::IgnoreCase))
+    {
+        const TSharedPtr<FJsonObject> Operand = GetObjectField(Expression, TEXT("operand"));
+        if (GetStringField(Expression, TEXT("type")).Equals(TEXT("float"), ESearchCase::IgnoreCase) && IsIntLikeType(InferExpressionType(Context, Operand)))
+        {
+            UK2Node_CallFunction* Node = SpawnCallFunctionNode(Context, FindKismetMathFunction(TEXT("Conv_IntToFloat")), TEXT("cast float"), 620 + Depth * 260, Context.NextExpressionY);
+            Context.NextExpressionY += 120;
+            if (Node != nullptr)
+            {
+                ConnectExpressionToPin(Context, Operand, FindPinByName(Node, TEXT("InInt")), Depth + 1);
+                return Node->GetReturnValuePin();
+            }
+        }
+        return GenerateExpressionPin(Context, Operand, Depth + 1);
+    }
+    if (Kind.Equals(TEXT("conditional"), ESearchCase::IgnoreCase))
+    {
+        return GenerateConditionalExpressionPin(Context, Expression, Depth);
+    }
+
+    SpawnGeneratedKmsNode(Context.Graph, false, Kind.IsEmpty() ? TEXT("expression") : Kind, ExpressionToText(Expression), 620 + Depth * 260, Context.NextExpressionY);
+    Context.NextExpressionY += 120;
+    return nullptr;
+}
+
+static void MaterializeExpressionNodes(UEdGraph* Graph, const TSharedPtr<FJsonObject>& Expression, int32 Depth, int32& NextY)
+{
+    if (!Expression.IsValid())
+    {
+        return;
+    }
+
+    const FString Kind = GetStringField(Expression, TEXT("kind"));
+    SpawnGeneratedKmsNode(
+        Graph,
+        false,
+        Kind.IsEmpty() ? TEXT("expression") : Kind,
+        ExpressionToText(Expression),
+        620 + Depth * 300,
+        NextY);
+    NextY += 120;
+
+    static const TCHAR* ObjectFields[] =
+    {
+        TEXT("context"),
+        TEXT("member"),
+        TEXT("left"),
+        TEXT("right"),
+        TEXT("operand"),
+        TEXT("index"),
+        TEXT("condition"),
+        TEXT("then"),
+        TEXT("else")
+    };
+
+    for (const TCHAR* FieldName : ObjectFields)
+    {
+        MaterializeExpressionNodes(Graph, GetObjectField(Expression, FieldName), Depth + 1, NextY);
+    }
+
+    const TArray<TSharedPtr<FJsonValue>>* Arguments = nullptr;
+    if (GetArrayField(Expression, TEXT("arguments"), Arguments))
+    {
+        for (const TSharedPtr<FJsonValue>& Argument : *Arguments)
+        {
+            MaterializeExpressionNodes(Graph, Argument.IsValid() ? Argument->AsObject() : nullptr, Depth + 1, NextY);
+        }
+    }
+
+    const TArray<TSharedPtr<FJsonValue>>* Items = nullptr;
+    if (GetArrayField(Expression, TEXT("items"), Items))
+    {
+        for (const TSharedPtr<FJsonValue>& Item : *Items)
+        {
+            MaterializeExpressionNodes(Graph, Item.IsValid() ? Item->AsObject() : nullptr, Depth + 1, NextY);
+        }
+    }
+
+    const TArray<TSharedPtr<FJsonValue>>* Entries = nullptr;
+    if (GetArrayField(Expression, TEXT("entries"), Entries))
+    {
+        for (const TSharedPtr<FJsonValue>& EntryValue : *Entries)
+        {
+            const TSharedPtr<FJsonObject> Entry = EntryValue.IsValid() ? EntryValue->AsObject() : nullptr;
+            MaterializeExpressionNodes(Graph, GetObjectField(Entry, TEXT("key")), Depth + 1, NextY);
+            MaterializeExpressionNodes(Graph, GetObjectField(Entry, TEXT("value")), Depth + 1, NextY);
+        }
+    }
+}
+
+static void MaterializeStatementNodes(
+    UEdGraph* Graph,
+    const TSharedPtr<FJsonObject>& Statement,
+    const bool bUseExecNodes,
+    UEdGraphPin*& ExecTail,
+    int32 Depth,
+    int32& NextY)
+{
+    if (!Statement.IsValid())
+    {
+        return;
+    }
+
+    const FString Kind = GetStringField(Statement, TEXT("kind"));
+    if (!Kind.Equals(TEXT("block"), ESearchCase::IgnoreCase))
+    {
+        UK2Node_KmsGeneratedNode* Node = SpawnGeneratedKmsNode(
+            Graph,
+            bUseExecNodes,
+            Kind.IsEmpty() ? TEXT("statement") : Kind,
+            StatementToText(Statement),
+            260 + Depth * 240,
+            NextY);
+        if (bUseExecNodes)
+        {
+            TryConnectExecPins(Graph, ExecTail, Node);
+        }
+        NextY += 150;
+    }
+
+    static const TCHAR* ExpressionFields[] =
+    {
+        TEXT("initializer"),
+        TEXT("expression"),
+        TEXT("condition"),
+        TEXT("value")
+    };
+
+    for (const TCHAR* FieldName : ExpressionFields)
+    {
+        MaterializeExpressionNodes(Graph, GetObjectField(Statement, FieldName), Depth + 1, NextY);
+    }
+
+    const TArray<TSharedPtr<FJsonValue>>* Statements = nullptr;
+    if (GetArrayField(Statement, TEXT("statements"), Statements))
+    {
+        for (const TSharedPtr<FJsonValue>& Child : *Statements)
+        {
+            MaterializeStatementNodes(Graph, Child.IsValid() ? Child->AsObject() : nullptr, bUseExecNodes, ExecTail, Depth, NextY);
+        }
+    }
+
+    MaterializeStatementNodes(Graph, GetObjectField(Statement, TEXT("then")), bUseExecNodes, ExecTail, Depth + 1, NextY);
+    MaterializeStatementNodes(Graph, GetObjectField(Statement, TEXT("else")), bUseExecNodes, ExecTail, Depth + 1, NextY);
+    MaterializeStatementNodes(Graph, GetObjectField(Statement, TEXT("body")), bUseExecNodes, ExecTail, Depth + 1, NextY);
+}
+
+static TArray<UEdGraphPin*> ConnectExecTails(FKmsBpNativeGenContext& Context, const TArray<UEdGraphPin*>& ExecTails, UK2Node* Node)
+{
+    TArray<UEdGraphPin*> OutTails;
+    if (Node == nullptr)
+    {
+        return ExecTails;
+    }
+
+    UEdGraphPin* ExecutePin = Node->GetExecPin();
+    for (UEdGraphPin* ExecTail : ExecTails)
+    {
+        TryConnectPins(Context, ExecTail, ExecutePin);
+    }
+
+    if (UEdGraphPin* ThenPin = Node->GetThenPin())
+    {
+        OutTails.Add(ThenPin);
+    }
+    return OutTails;
+}
+
+static TArray<UEdGraphPin*> ConnectExecTailsToGeneratedNode(
+    FKmsBpNativeGenContext& Context,
+    const TArray<UEdGraphPin*>& ExecTails,
+    UK2Node_KmsGeneratedNode* Node)
+{
+    TArray<UEdGraphPin*> OutTails;
+    if (Node == nullptr)
+    {
+        return ExecTails;
+    }
+
+    UEdGraphPin* ExecutePin = Node->FindPin(UEdGraphSchema_K2::PN_Execute);
+    for (UEdGraphPin* ExecTail : ExecTails)
+    {
+        TryConnectPins(Context, ExecTail, ExecutePin);
+    }
+
+    if (UEdGraphPin* ThenPin = Node->FindPin(UEdGraphSchema_K2::PN_Then))
+    {
+        OutTails.Add(ThenPin);
+    }
+    return OutTails;
+}
+
+static bool GenerateAssignmentStatement(
+    FKmsBpNativeGenContext& Context,
+    const TSharedPtr<FJsonObject>& Expression,
+    const TArray<UEdGraphPin*>& ExecTails,
+    TArray<UEdGraphPin*>& OutExecTails,
+    int32 Depth,
+    int32& NextY)
+{
+    if (!Expression.IsValid() || !GetStringField(Expression, TEXT("kind")).Equals(TEXT("binary"), ESearchCase::IgnoreCase))
+    {
+        return false;
+    }
+
+    const FString Op = GetStringField(Expression, TEXT("op"));
+    if (!Op.Equals(TEXT("=")) && !Op.Equals(TEXT("+=")) && !Op.Equals(TEXT("-=")) && !Op.Equals(TEXT("*=")) && !Op.Equals(TEXT("/=")))
+    {
+        return false;
+    }
+
+    const TSharedPtr<FJsonObject> Left = GetObjectField(Expression, TEXT("left"));
+    if (!Left.IsValid() || !GetStringField(Left, TEXT("kind")).Equals(TEXT("identifier"), ESearchCase::IgnoreCase))
+    {
+        return false;
+    }
+
+    UK2Node_VariableSet* SetNode = SpawnVariableSetNode(Context, GetStringField(Left, TEXT("name")), 260 + Depth * 240, NextY);
+    if (SetNode == nullptr)
+    {
+        return false;
+    }
+
+    OutExecTails = ConnectExecTails(Context, ExecTails, SetNode);
+    TSharedPtr<FJsonObject> ValueExpression = GetObjectField(Expression, TEXT("right"));
+    if (!Op.Equals(TEXT("=")))
+    {
+        TSharedPtr<FJsonObject> CompoundExpression = MakeShared<FJsonObject>();
+        CompoundExpression->SetStringField(TEXT("kind"), TEXT("binary"));
+        CompoundExpression->SetStringField(TEXT("op"), Op.Left(1));
+        CompoundExpression->SetObjectField(TEXT("left"), Left);
+        CompoundExpression->SetObjectField(TEXT("right"), ValueExpression);
+        ValueExpression = CompoundExpression;
+    }
+
+    if (!ConnectExpressionToPin(Context, ValueExpression, GetVariableSetValuePin(SetNode), Depth + 1))
+    {
+        MaterializeExpressionNodes(Context.Graph, ValueExpression, Depth + 1, Context.NextExpressionY);
+    }
+
+    NextY += 180;
+    return true;
+}
+
+static bool GeneratePrintStatement(
+    FKmsBpNativeGenContext& Context,
+    const TSharedPtr<FJsonObject>& Expression,
+    const TArray<UEdGraphPin*>& ExecTails,
+    TArray<UEdGraphPin*>& OutExecTails,
+    int32 Depth,
+    int32& NextY)
+{
+    if (!Expression.IsValid()
+        || !GetStringField(Expression, TEXT("kind")).Equals(TEXT("call"), ESearchCase::IgnoreCase)
+        || !GetStringField(Expression, TEXT("name")).Equals(TEXT("print"), ESearchCase::IgnoreCase))
+    {
+        return false;
+    }
+
+    UK2Node_CallFunction* Node = SpawnCallFunctionNode(Context, FindKismetSystemFunction(TEXT("PrintString")), TEXT("call print"), 260 + Depth * 240, NextY);
+    if (Node == nullptr)
+    {
+        return false;
+    }
+
+    OutExecTails = ConnectExecTails(Context, ExecTails, Node);
+    const TArray<TSharedPtr<FJsonValue>>* Arguments = nullptr;
+    if (GetArrayField(Expression, TEXT("arguments"), Arguments) && Arguments->Num() > 0)
+    {
+        ConnectExpressionToPin(Context, (*Arguments)[0].IsValid() ? (*Arguments)[0]->AsObject() : nullptr, FindPinByName(Node, TEXT("InString")), Depth + 1);
+    }
+
+    NextY += 180;
+    return true;
+}
+
+static bool ShouldGenerateNativeVariableInitializer(const TSharedPtr<FJsonObject>& Initializer)
+{
+    if (!Initializer.IsValid())
+    {
+        return true;
+    }
+
+    const FString Kind = GetStringField(Initializer, TEXT("kind"));
+    return !Kind.Equals(TEXT("object"), ESearchCase::IgnoreCase)
+        && !Kind.Equals(TEXT("typeof"), ESearchCase::IgnoreCase);
+}
+
+static void CollectLocalVariableTypes(const TSharedPtr<FJsonObject>& Statement, TMap<FString, FString>& OutVariables)
+{
+    if (!Statement.IsValid())
+    {
+        return;
+    }
+
+    if (GetStringField(Statement, TEXT("kind")).Equals(TEXT("var"), ESearchCase::IgnoreCase))
+    {
+        OutVariables.FindOrAdd(GetStringField(Statement, TEXT("name"))) = GetStringField(Statement, TEXT("type"));
+    }
+
+    const TArray<TSharedPtr<FJsonValue>>* Statements = nullptr;
+    if (GetArrayField(Statement, TEXT("statements"), Statements))
+    {
+        for (const TSharedPtr<FJsonValue>& Child : *Statements)
+        {
+            CollectLocalVariableTypes(Child.IsValid() ? Child->AsObject() : nullptr, OutVariables);
+        }
+    }
+
+    CollectLocalVariableTypes(GetObjectField(Statement, TEXT("then")), OutVariables);
+    CollectLocalVariableTypes(GetObjectField(Statement, TEXT("else")), OutVariables);
+    CollectLocalVariableTypes(GetObjectField(Statement, TEXT("body")), OutVariables);
+}
+
+static void SyncLocalVariables(FKmsBpNativeGenContext& Context, const TMap<FString, FString>& LocalTypes, FKmsBpImportResult& Result)
+{
+    for (const TPair<FString, FString>& Local : LocalTypes)
+    {
+        Context.LocalVariables.Add(Local.Key);
+        Context.VariableTypes.FindOrAdd(Local.Key) = Local.Value;
+        if (Context.Blueprint == nullptr || Context.Graph == nullptr || FBlueprintEditorUtils::FindLocalVariable(Context.Blueprint, Context.Graph, FName(*Local.Key)) != nullptr)
+        {
+            continue;
+        }
+
+        FEdGraphPinType PinType;
+        ResolvePinType(Local.Value, PinType, Result, false);
+        FBlueprintEditorUtils::AddLocalVariable(Context.Blueprint, Context.Graph, FName(*Local.Key), PinType);
+    }
+}
+
+static TArray<UEdGraphPin*> GenerateStatementNodes(
+    FKmsBpNativeGenContext& Context,
+    const TSharedPtr<FJsonObject>& Statement,
+    const TArray<UEdGraphPin*>& ExecTails,
+    int32 Depth,
+    int32& NextY);
+
+static TArray<UEdGraphPin*> GenerateBlockStatements(
+    FKmsBpNativeGenContext& Context,
+    const TSharedPtr<FJsonObject>& Statement,
+    const TArray<UEdGraphPin*>& ExecTails,
+    int32 Depth,
+    int32& NextY)
+{
+    TArray<UEdGraphPin*> CurrentTails = ExecTails;
+    const TArray<TSharedPtr<FJsonValue>>* Statements = nullptr;
+    if (GetArrayField(Statement, TEXT("statements"), Statements))
+    {
+        for (const TSharedPtr<FJsonValue>& Child : *Statements)
+        {
+            CurrentTails = GenerateStatementNodes(Context, Child.IsValid() ? Child->AsObject() : nullptr, CurrentTails, Depth, NextY);
+        }
+    }
+    return CurrentTails;
+}
+
+static TArray<UEdGraphPin*> GenerateIfStatement(
+    FKmsBpNativeGenContext& Context,
+    const TSharedPtr<FJsonObject>& Statement,
+    const TArray<UEdGraphPin*>& ExecTails,
+    int32 Depth,
+    int32& NextY)
+{
+    UK2Node_IfThenElse* BranchNode = NewObject<UK2Node_IfThenElse>(Context.Graph);
+    AddGeneratedNodeToGraph(Context.Graph, BranchNode, TEXT("if"), 260 + Depth * 240, NextY);
+    for (UEdGraphPin* ExecTail : ExecTails)
+    {
+        TryConnectPins(Context, ExecTail, BranchNode->GetExecPin());
+    }
+    ConnectExpressionToPin(Context, GetObjectField(Statement, TEXT("condition")), BranchNode->GetConditionPin(), Depth + 1);
+
+    int32 ThenY = NextY + 180;
+    TArray<UEdGraphPin*> ThenExits = GenerateStatementNodes(Context, GetObjectField(Statement, TEXT("then")), MakeExecTails(BranchNode->GetThenPin()), Depth + 1, ThenY);
+
+    int32 ElseY = ThenY + 80;
+    TArray<UEdGraphPin*> ElseExits = GenerateStatementNodes(Context, GetObjectField(Statement, TEXT("else")), MakeExecTails(BranchNode->GetElsePin()), Depth + 1, ElseY);
+
+    ThenExits.Append(ElseExits);
+    NextY = FMath::Max(ThenY, ElseY) + 40;
+    return ThenExits;
+}
+
+static bool GenerateWhileStatement(
+    FKmsBpNativeGenContext& Context,
+    const TSharedPtr<FJsonObject>& Statement,
+    const TArray<UEdGraphPin*>& ExecTails,
+    TArray<UEdGraphPin*>& OutExecTails,
+    int32 Depth,
+    int32& NextY)
+{
+    UK2Node_MacroInstance* WhileNode = SpawnStandardMacroNode(Context, TEXT("WhileLoop"), TEXT("while"), 260 + Depth * 240, NextY);
+    if (WhileNode == nullptr)
+    {
+        return false;
+    }
+
+    UEdGraphPin* ExecutePin = FindExecPinByName(WhileNode, UEdGraphSchema_K2::PN_Execute, EGPD_Input);
+    if (ExecutePin == nullptr)
+    {
+        ExecutePin = WhileNode->GetExecPin();
+    }
+    for (UEdGraphPin* ExecTail : ExecTails)
+    {
+        TryConnectPins(Context, ExecTail, ExecutePin);
+    }
+
+    ConnectExpressionToPin(Context, GetObjectField(Statement, TEXT("condition")), FindPinByName(WhileNode, TEXT("Condition")), Depth + 1);
+
+    UEdGraphPin* BodyEntry = FindExecPinByName(WhileNode, TEXT("Loop Body"), EGPD_Output);
+    int32 BodyY = NextY + 180;
+    GenerateStatementNodes(Context, GetObjectField(Statement, TEXT("body")), MakeExecTails(BodyEntry), Depth + 1, BodyY);
+
+    UEdGraphPin* CompletedPin = FindExecPinByName(WhileNode, TEXT("Completed"), EGPD_Output);
+    OutExecTails = MakeExecTails(CompletedPin != nullptr ? CompletedPin : BodyEntry);
+    NextY = BodyY + 40;
+    return true;
+}
+
+static TArray<UEdGraphPin*> GenerateReturnStatement(
+    FKmsBpNativeGenContext& Context,
+    const TSharedPtr<FJsonObject>& Statement,
+    const TArray<UEdGraphPin*>& ExecTails,
+    int32 Depth,
+    int32& NextY)
+{
+    UK2Node_FunctionResult* ResultNode = FindFunctionResultNode(Context.Graph);
+    if (ResultNode == nullptr)
+    {
+        UK2Node_KmsGeneratedNode* Node = SpawnGeneratedKmsNode(Context.Graph, ExecTails.Num() > 0, TEXT("return"), StatementToText(Statement), 260 + Depth * 240, NextY);
+        NextY += 150;
+        return ConnectExecTailsToGeneratedNode(Context, ExecTails, Node);
+    }
+
+    ResultNode->NodePosX = 260 + Depth * 240;
+    ResultNode->NodePosY = NextY;
+    for (UEdGraphPin* ExecTail : ExecTails)
+    {
+        TryConnectPins(Context, ExecTail, ResultNode->GetExecPin());
+    }
+    ConnectExpressionToPin(Context, GetObjectField(Statement, TEXT("value")), ResultNode->FindPin(UEdGraphSchema_K2::PN_ReturnValue), Depth + 1);
+    NextY += 180;
+    return TArray<UEdGraphPin*>();
+}
+
+static TArray<UEdGraphPin*> GenerateStatementNodes(
+    FKmsBpNativeGenContext& Context,
+    const TSharedPtr<FJsonObject>& Statement,
+    const TArray<UEdGraphPin*>& ExecTails,
+    int32 Depth,
+    int32& NextY)
+{
+    if (!Statement.IsValid())
+    {
+        return ExecTails;
+    }
+
+    const FString Kind = GetStringField(Statement, TEXT("kind"));
+    if (Kind.Equals(TEXT("block"), ESearchCase::IgnoreCase))
+    {
+        return GenerateBlockStatements(Context, Statement, ExecTails, Depth, NextY);
+    }
+    if (Kind.Equals(TEXT("var"), ESearchCase::IgnoreCase))
+    {
+        const TSharedPtr<FJsonObject> Initializer = GetObjectField(Statement, TEXT("initializer"));
+        if (!ShouldGenerateNativeVariableInitializer(Initializer))
+        {
+            UK2Node_KmsGeneratedNode* Node = SpawnGeneratedKmsNode(Context.Graph, ExecTails.Num() > 0, TEXT("var"), StatementToText(Statement), 260 + Depth * 240, NextY);
+            TArray<UEdGraphPin*> OutExecTails = ConnectExecTailsToGeneratedNode(Context, ExecTails, Node);
+            MaterializeExpressionNodes(Context.Graph, Initializer, Depth + 1, Context.NextExpressionY);
+            NextY += 150;
+            return OutExecTails;
+        }
+
+        UK2Node_VariableSet* SetNode = SpawnVariableSetNode(Context, GetStringField(Statement, TEXT("name")), 260 + Depth * 240, NextY);
+        TArray<UEdGraphPin*> OutExecTails = ConnectExecTails(Context, ExecTails, SetNode);
+        if (!ConnectExpressionToPin(Context, Initializer, GetVariableSetValuePin(SetNode), Depth + 1))
+        {
+            MaterializeExpressionNodes(Context.Graph, Initializer, Depth + 1, Context.NextExpressionY);
+        }
+        NextY += 180;
+        return OutExecTails;
+    }
+    if (Kind.Equals(TEXT("expression"), ESearchCase::IgnoreCase))
+    {
+        const TSharedPtr<FJsonObject> Expression = GetObjectField(Statement, TEXT("expression"));
+        TArray<UEdGraphPin*> OutExecTails;
+        if (GenerateAssignmentStatement(Context, Expression, ExecTails, OutExecTails, Depth, NextY)
+            || GeneratePrintStatement(Context, Expression, ExecTails, OutExecTails, Depth, NextY))
+        {
+            return OutExecTails;
+        }
+    }
+    if (Kind.Equals(TEXT("if"), ESearchCase::IgnoreCase))
+    {
+        return GenerateIfStatement(Context, Statement, ExecTails, Depth, NextY);
+    }
+    TArray<UEdGraphPin*> OutExecTails;
+    if (Kind.Equals(TEXT("while"), ESearchCase::IgnoreCase) && GenerateWhileStatement(Context, Statement, ExecTails, OutExecTails, Depth, NextY))
+    {
+        return OutExecTails;
+    }
+    if (Kind.Equals(TEXT("return"), ESearchCase::IgnoreCase))
+    {
+        return GenerateReturnStatement(Context, Statement, ExecTails, Depth, NextY);
+    }
+
+    UK2Node_KmsGeneratedNode* Node = SpawnGeneratedKmsNode(Context.Graph, ExecTails.Num() > 0, Kind.IsEmpty() ? TEXT("statement") : Kind, StatementToText(Statement), 260 + Depth * 240, NextY);
+    TArray<UEdGraphPin*> GeneratedTails = ConnectExecTailsToGeneratedNode(Context, ExecTails, Node);
+    MaterializeExpressionNodes(Context.Graph, GetObjectField(Statement, TEXT("condition")), Depth + 1, Context.NextExpressionY);
+    UEdGraphPin* FallbackTail = GeneratedTails.Num() > 0 ? GeneratedTails[0] : nullptr;
+    MaterializeStatementNodes(Context.Graph, GetObjectField(Statement, TEXT("body")), GeneratedTails.Num() > 0, FallbackTail, Depth + 1, NextY);
+    NextY += 150;
+    return GeneratedTails;
+}
+
+static void MaterializeProcedureNodes(UBlueprint* Blueprint, UEdGraph* Graph, const FKmsBpJsonProcedure& Procedure, const bool bPure, FKmsBpImportResult& Result)
+{
+    if (Blueprint == nullptr || Graph == nullptr || !Procedure.Body.IsValid())
+    {
+        return;
+    }
+
+    Graph->Modify();
+    ClearGeneratedKmsNodes(Graph);
+
+    TArray<UEdGraphPin*> ExecTails;
+    if (!bPure)
+    {
+        if (UK2Node_FunctionEntry* EntryNode = FindFunctionEntryNode(Graph))
+        {
+            ExecTails = MakeExecTails(EntryNode->FindPin(UEdGraphSchema_K2::PN_Then));
+        }
+    }
+
+    int32 NextY = 380;
+    FKmsBpNativeGenContext Context;
+    Context.Blueprint = Blueprint;
+    Context.Graph = Graph;
+    Context.K2Schema = Cast<const UEdGraphSchema_K2>(Graph->GetSchema());
+    Context.ImportResult = &Result;
+
+    for (const FBPVariableDescription& Variable : Blueprint->NewVariables)
+    {
+        Context.VariableTypes.FindOrAdd(Variable.VarName.ToString()) = Variable.VarType.PinCategory.ToString();
+        if (Variable.VarType.PinCategory == UEdGraphSchema_K2::PC_Boolean)
+        {
+            Context.VariableTypes[Variable.VarName.ToString()] = TEXT("bool");
+        }
+        else if (Variable.VarType.PinCategory == UEdGraphSchema_K2::PC_Int)
+        {
+            Context.VariableTypes[Variable.VarName.ToString()] = TEXT("int");
+        }
+        else if (Variable.VarType.PinCategory == UEdGraphSchema_K2::PC_Real)
+        {
+            Context.VariableTypes[Variable.VarName.ToString()] = TEXT("float");
+        }
+        else if (Variable.VarType.PinCategory == UEdGraphSchema_K2::PC_String)
+        {
+            Context.VariableTypes[Variable.VarName.ToString()] = TEXT("string");
+        }
+    }
+
+    for (const FKmsBpJsonParameter& Parameter : Procedure.Parameters)
+    {
+        Context.VariableTypes.FindOrAdd(Parameter.Name) = Parameter.Type;
+        if (!Parameter.Modifier.Equals(TEXT("out"), ESearchCase::IgnoreCase))
+        {
+            Context.LocalVariables.Add(Parameter.Name);
+        }
+    }
+
+    TMap<FString, FString> LocalTypes;
+    CollectLocalVariableTypes(Procedure.Body, LocalTypes);
+    for (const FKmsBpJsonParameter& Parameter : Procedure.Parameters)
+    {
+        if (Parameter.Modifier.Equals(TEXT("out"), ESearchCase::IgnoreCase))
+        {
+            const FString AliasName = Parameter.Name + TEXT("_Out");
+            Context.VariableAliases.FindOrAdd(Parameter.Name) = AliasName;
+            Context.VariableTypes.FindOrAdd(AliasName) = Parameter.Type;
+            LocalTypes.FindOrAdd(AliasName) = Parameter.Type;
+        }
+    }
+    FKmsBpImportResult DummyResult;
+    SyncLocalVariables(Context, LocalTypes, DummyResult);
+
+    ExecTails = GenerateStatementNodes(Context, Procedure.Body, ExecTails, 0, NextY);
+
+    if (!bPure)
+    {
+        if (UK2Node_FunctionResult* ResultNode = FindFunctionResultNode(Graph))
+        {
+            bool bHasOutPins = false;
+            for (const FKmsBpJsonParameter& Parameter : Procedure.Parameters)
+            {
+                if (!Parameter.Modifier.Equals(TEXT("out"), ESearchCase::IgnoreCase))
+                {
+                    continue;
+                }
+
+                bHasOutPins = true;
+                UK2Node_VariableGet* GetNode = SpawnVariableGetNode(Context, Parameter.Name, 620, Context.NextExpressionY);
+                Context.NextExpressionY += 120;
+                TryConnectPins(Context, GetNode != nullptr ? GetNode->GetValuePin() : nullptr, ResultNode->FindPin(FName(*Parameter.Name)));
+            }
+
+            if (bHasOutPins)
+            {
+                ResultNode->NodePosX = 260;
+                ResultNode->NodePosY = NextY;
+                for (UEdGraphPin* ExecTail : ExecTails)
+                {
+                    TryConnectPins(Context, ExecTail, ResultNode->GetExecPin());
+                }
+            }
+        }
+    }
+    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
 }
 
 static FKmsBpJsonProperty ParseProperty(const TSharedPtr<FJsonObject>& Object)
@@ -591,7 +2124,7 @@ static UClass* ResolveComponentClass(const FString& TypeName, FKmsBpImportResult
     return USceneComponent::StaticClass();
 }
 
-static bool ResolvePinType(const FString& TypeText, FEdGraphPinType& OutPinType, FKmsBpImportResult& Result)
+static bool ResolvePinType(const FString& TypeText, FEdGraphPinType& OutPinType, FKmsBpImportResult& Result, bool bIsReference = false)
 {
     FString TrimmedType = TypeText;
     TrimmedType.TrimStartAndEndInline();
@@ -663,7 +2196,7 @@ static bool ResolvePinType(const FString& TypeText, FEdGraphPinType& OutPinType,
         SubCategory,
         SubCategoryObject,
         bIsArray ? EPinContainerType::Array : EPinContainerType::None,
-        false,
+        bIsReference,
         FEdGraphTerminalType());
 
     return true;
@@ -857,7 +2390,7 @@ static UBlueprint* CreateOrLoadBlueprint(const FKmsBpJsonBlueprint& JsonBlueprin
     }
 
     const FString AssetName = FPackageName::GetLongPackageAssetName(PackageName);
-    UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *ToObjectPath(PackageName));
+    UBlueprint* Blueprint = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, *ToObjectPath(PackageName), nullptr, LOAD_NoWarn | LOAD_DisableCompileOnLoad));
     if (Blueprint != nullptr)
     {
         AddMessage(Result, FString::Printf(TEXT("Updating existing Blueprint %s."), *Blueprint->GetPathName()));
@@ -1068,6 +2601,142 @@ static UEdGraph* FindOrCreateFunctionGraph(UBlueprint* Blueprint, const FString&
     return Graph;
 }
 
+static UK2Node_FunctionEntry* FindFunctionEntryNode(UEdGraph* Graph)
+{
+    if (Graph == nullptr)
+    {
+        return nullptr;
+    }
+
+    TArray<UK2Node_FunctionEntry*> EntryNodes;
+    Graph->GetNodesOfClass(EntryNodes);
+    return EntryNodes.Num() > 0 ? EntryNodes[0] : nullptr;
+}
+
+static UK2Node_FunctionResult* FindFunctionResultNode(UEdGraph* Graph)
+{
+    if (Graph == nullptr)
+    {
+        return nullptr;
+    }
+
+    TArray<UK2Node_FunctionResult*> ResultNodes;
+    Graph->GetNodesOfClass(ResultNodes);
+    return ResultNodes.Num() > 0 ? ResultNodes[0] : nullptr;
+}
+
+static void ClearUserDefinedPins(UK2Node_EditablePinBase* Node)
+{
+    if (Node == nullptr)
+    {
+        return;
+    }
+
+    TArray<FName> PinNames;
+    for (const TSharedPtr<FUserPinInfo>& PinInfo : Node->UserDefinedPins)
+    {
+        if (PinInfo.IsValid())
+        {
+            PinNames.Add(PinInfo->PinName);
+        }
+    }
+
+    for (const FName PinName : PinNames)
+    {
+        Node->RemoveUserDefinedPinByName(PinName);
+    }
+}
+
+static bool IsVoidType(const FString& TypeText)
+{
+    FString TrimmedType = TypeText;
+    TrimmedType.TrimStartAndEndInline();
+    return TrimmedType.IsEmpty() || TrimmedType.Equals(TEXT("void"), ESearchCase::IgnoreCase);
+}
+
+static void SyncFunctionSignature(UBlueprint* Blueprint, UEdGraph* Graph, const FKmsBpJsonProcedure& Procedure, bool bPure, FKmsBpImportResult& Result)
+{
+    UK2Node_FunctionEntry* EntryNode = FindFunctionEntryNode(Graph);
+    if (EntryNode == nullptr)
+    {
+        AddWarning(Result, FString::Printf(TEXT("Function graph '%s' has no entry node; parameters were not generated."), *Procedure.Name));
+        return;
+    }
+
+    EntryNode->Modify();
+    EntryNode->bIsEditable = true;
+    if (!Procedure.Category.IsEmpty())
+    {
+        EntryNode->MetaData.Category = FText::FromString(Procedure.Category);
+    }
+
+    if (bPure)
+    {
+        EntryNode->AddExtraFlags(FUNC_BlueprintPure);
+    }
+    else
+    {
+        EntryNode->ClearExtraFlags(FUNC_BlueprintPure);
+    }
+
+    UK2Node_FunctionResult* ResultNode = FindFunctionResultNode(Graph);
+    ClearUserDefinedPins(EntryNode);
+    ClearUserDefinedPins(ResultNode);
+
+    bool bNeedsResultNode = !IsVoidType(Procedure.ReturnType);
+    for (const FKmsBpJsonParameter& Parameter : Procedure.Parameters)
+    {
+        if (Parameter.Modifier.Equals(TEXT("out"), ESearchCase::IgnoreCase))
+        {
+            bNeedsResultNode = true;
+            continue;
+        }
+
+        FEdGraphPinType PinType;
+        ResolvePinType(Parameter.Type, PinType, Result, Parameter.Modifier.Equals(TEXT("ref"), ESearchCase::IgnoreCase));
+        EntryNode->CreateUserDefinedPin(FName(*Parameter.Name), PinType, EGPD_Output, false);
+    }
+
+    if (bNeedsResultNode && ResultNode == nullptr)
+    {
+        ResultNode = FBlueprintEditorUtils::FindOrCreateFunctionResultNode(EntryNode);
+    }
+
+    if (ResultNode != nullptr)
+    {
+        ResultNode->Modify();
+        ResultNode->bIsEditable = true;
+
+        if (!IsVoidType(Procedure.ReturnType))
+        {
+            FEdGraphPinType ReturnPinType;
+            ResolvePinType(Procedure.ReturnType, ReturnPinType, Result);
+            ResultNode->CreateUserDefinedPin(UEdGraphSchema_K2::PN_ReturnValue, ReturnPinType, EGPD_Input, false);
+        }
+
+        for (const FKmsBpJsonParameter& Parameter : Procedure.Parameters)
+        {
+            if (!Parameter.Modifier.Equals(TEXT("out"), ESearchCase::IgnoreCase))
+            {
+                continue;
+            }
+
+            FEdGraphPinType PinType;
+            ResolvePinType(Parameter.Type, PinType, Result);
+            ResultNode->CreateUserDefinedPin(FName(*Parameter.Name), PinType, EGPD_Input, false);
+        }
+    }
+
+    EntryNode->ReconstructNode();
+    if (ResultNode != nullptr)
+    {
+        ResultNode->ReconstructNode();
+    }
+
+    Graph->Modify();
+    FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
+}
+
 static bool HasKmsGeneratedComment(UEdGraph* Graph, const FString& ProcedureName)
 {
     if (Graph == nullptr)
@@ -1160,6 +2829,7 @@ static bool ImportProcedures(UBlueprint* Blueprint, const FKmsBpJsonBlueprint& J
         if (Procedure.Kind.Equals(TEXT("event"), ESearchCase::IgnoreCase))
         {
             UEdGraph* EventGraph = FindOrCreateEventGraph(Blueprint);
+            MaterializeProcedureNodes(Blueprint, EventGraph, Procedure, false, Result);
             AddProcedureComment(Blueprint, EventGraph, Procedure, ProcedureIndex++);
             continue;
         }
@@ -1167,7 +2837,10 @@ static bool ImportProcedures(UBlueprint* Blueprint, const FKmsBpJsonBlueprint& J
         if (Procedure.Kind.Equals(TEXT("callable"), ESearchCase::IgnoreCase)
             || Procedure.Kind.Equals(TEXT("pure"), ESearchCase::IgnoreCase))
         {
-            UEdGraph* FunctionGraph = FindOrCreateFunctionGraph(Blueprint, Procedure.Name, Procedure.Kind.Equals(TEXT("pure"), ESearchCase::IgnoreCase));
+            const bool bPure = Procedure.Kind.Equals(TEXT("pure"), ESearchCase::IgnoreCase);
+            UEdGraph* FunctionGraph = FindOrCreateFunctionGraph(Blueprint, Procedure.Name, bPure);
+            SyncFunctionSignature(Blueprint, FunctionGraph, Procedure, bPure, Result);
+            MaterializeProcedureNodes(Blueprint, FunctionGraph, Procedure, bPure, Result);
             AddProcedureComment(Blueprint, FunctionGraph, Procedure, ProcedureIndex++);
             continue;
         }
@@ -1264,4 +2937,18 @@ bool UKmsBpImporterLibrary::ImportKmsBlueprintJson(const FString& JsonPath, cons
 
     Result.bSuccess = bAllSucceeded;
     return bAllSucceeded;
+}
+
+FString UKmsBpImporterLibrary::KmsGeneratedExpression(const FString& Kind, const FString& Text)
+{
+    return Text.IsEmpty() ? Kind : Text;
+}
+
+void UKmsBpImporterLibrary::KmsGeneratedStatement(const FString& Kind, const FString& Text)
+{
+}
+
+FString UKmsBpImporterLibrary::KmsGeneratedStatementPure(const FString& Kind, const FString& Text)
+{
+    return Text.IsEmpty() ? Kind : Text;
 }

@@ -18,10 +18,16 @@ namespace UAssetStudio.Patching.Tests
         private static string AssetPath =>
             Path.Combine(AppContext.BaseDirectory, "TestAssets", "WPN_LockOnRifle.uasset");
 
+        private static void RequireTestAsset()
+        {
+            if (!File.Exists(AssetPath))
+                Assert.Inconclusive($"Test asset missing: {AssetPath}");
+        }
+
         [TestMethod]
         public void ReplaceFunctionBytecode_OnlyTargetFunctionChanges()
         {
-            Assert.IsTrue(File.Exists(AssetPath), $"Test asset missing: {AssetPath}");
+            RequireTestAsset();
 
             var session = AssetPatchSession.Load(AssetPath, Ver, null);
 
@@ -80,6 +86,8 @@ namespace UAssetStudio.Patching.Tests
         [TestMethod]
         public void ReplaceFunctionBytecode_UnknownFunction_Throws()
         {
+            RequireTestAsset();
+
             var session = AssetPatchSession.Load(AssetPath, Ver, null);
             var kms = Path.Combine(Path.GetTempPath(), $"WPN_LockOnRifle_{Guid.NewGuid():N}.kms");
             KmsDecompiler.DecompileToFile(session.Asset, kms);
@@ -93,6 +101,8 @@ namespace UAssetStudio.Patching.Tests
         [TestMethod]
         public void SetProperty_ScalarValue_PersistsAfterReload()
         {
+            RequireTestAsset();
+
             var session = AssetPatchSession.Load(AssetPath, Ver, null);
 
             // Find the first top-level scalar leaf property in any NormalExport.
@@ -155,6 +165,8 @@ namespace UAssetStudio.Patching.Tests
         [TestMethod]
         public void ApplyKmsPatch_AutoFunctionDiff_OnlyTargetFunctionChanges()
         {
+            RequireTestAsset();
+
             var session = AssetPatchSession.Load(AssetPath, Ver, null);
             var kms = KmsDecompiler.DecompileToString(session.Asset);
             var target = session.Asset.Exports.OfType<FunctionExport>()
@@ -198,6 +210,8 @@ namespace UAssetStudio.Patching.Tests
         [TestMethod]
         public void ApplyKmsPatch_ScalarProperty_PersistsAfterReload()
         {
+            RequireTestAsset();
+
             var session = AssetPatchSession.Load(AssetPath, Ver, null);
             var kms = KmsDecompiler.DecompileToString(session.Asset);
             if (!TryEditFirstClassScalarProperty(kms, out var edited, out var exportName, out var propName, out var expected))
@@ -226,6 +240,8 @@ namespace UAssetStudio.Patching.Tests
         [TestMethod]
         public void ApplyKmsPatch_FunctionAndProperty_BothPersist()
         {
+            RequireTestAsset();
+
             var session = AssetPatchSession.Load(AssetPath, Ver, null);
             var kms = KmsDecompiler.DecompileToString(session.Asset);
             var target = session.Asset.Exports.OfType<FunctionExport>()

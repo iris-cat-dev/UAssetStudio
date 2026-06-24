@@ -21,10 +21,10 @@
 
   <!-- Committed, round-trippable UE4.27 blueprint asset reused from UAssetAPI.Tests. -->
   <ItemGroup>
-    <None Include="..\UAssetAPI\UAssetAPI.Tests\TestAssets\TestJson\WPN_LockOnRifle.uasset" Link="TestAssets\WPN_LockOnRifle.uasset">
+    <None Include="..\UAssetAPI\UAssetAPI.Tests\TestAssets\TestJson\WPN_LockOnRifle.uasset" Link="TestAssets\WPN_LockOnRifle.uasset" Condition="Exists('..\UAssetAPI\UAssetAPI.Tests\TestAssets\TestJson\WPN_LockOnRifle.uasset')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\UAssetAPI\UAssetAPI.Tests\TestAssets\TestJson\WPN_LockOnRifle.uexp" Link="TestAssets\WPN_LockOnRifle.uexp">
+    <None Include="..\UAssetAPI\UAssetAPI.Tests\TestAssets\TestJson\WPN_LockOnRifle.uexp" Link="TestAssets\WPN_LockOnRifle.uexp" Condition="Exists('..\UAssetAPI\UAssetAPI.Tests\TestAssets\TestJson\WPN_LockOnRifle.uexp')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

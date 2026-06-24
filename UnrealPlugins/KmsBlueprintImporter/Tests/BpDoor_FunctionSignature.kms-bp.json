@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "kms-bp-export-v1",
+  "sourcePath": "Tests/BpDoor_FunctionSignature.kms",
+  "sourceSha256": "fixture",
+  "blueprints": [
+    {
+      "name": "BP_Door",
+      "parentType": "Actor",
+      "assetPath": "/Game/Generated/BP_Door_Gen",
+      "components": [
+        {
+          "name": "Root",
+          "type": "SceneComponent",
+          "isRoot": true,
+          "attachTarget": null,
+          "properties": []
+        }
+      ],
+      "variables": [
+        {
+          "name": "OpenAngle",
+          "type": "float",
+          "isEditable": true,
+          "category": "Door",
+          "initializer": {
+            "kind": "literal",
+            "type": "float",
+            "value": 90.0
+          }
+        },
+        {
+          "name": "IsOpen",
+          "type": "bool",
+          "isEditable": false,
+          "category": null,
+          "initializer": {
+            "kind": "literal",
+            "type": "bool",
+            "value": false
+          }
+        }
+      ],
+      "procedures": [
+        {
+          "name": "BeginPlay",
+          "kind": "event",
+          "returnType": "void",
+          "eventName": "BeginPlay",
+          "category": null,
+          "parameters": [],
+          "body": {
+            "kind": "block",
+            "statements": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "call",
+                  "name": "print",
+                  "typeArguments": [],
+                  "arguments": [
+                    {
+                      "kind": "literal",
+                      "type": "string",
+                      "value": "Door ready"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "SetOpenAngle",
+          "kind": "callable",
+          "returnType": "void",
+          "eventName": null,
+          "category": "Door",
+          "parameters": [
+            {
+              "name": "NewAngle",
+              "type": "float",
+              "modifier": null
+            },
+            {
+              "name": "PreviousAngle",
+              "type": "float",
+              "modifier": "out"
+            }
+          ],
+          "body": {
+            "kind": "block",
+            "statements": []
+          }
+        },
+        {
+          "name": "GetIsOpen",
+          "kind": "pure",
+          "returnType": "bool",
+          "eventName": null,
+          "category": "Door",
+          "parameters": [],
+          "body": {
+            "kind": "block",
+            "statements": []
+          }
+        }
+      ]
+    }
+  ]
+}

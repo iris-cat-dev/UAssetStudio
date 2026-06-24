@@ -133,6 +133,15 @@ public class BlueprintProfileSemanticCheckerTests
         AssertHasDiagnostic(diagnostics, "BannedIntrinsic");
     }
 
+    [TestMethod]
+    public void BpProfile_SyntaxExpressionSample_HasNoDiagnostics()
+    {
+        var unit = BlueprintAuthoringParserTests.ParseSample("BpDoor_SyntaxExpressions.kms");
+        var diagnostics = BlueprintProfileSemanticChecker.Check(unit);
+
+        Assert.AreEqual(0, diagnostics.Count, string.Join(Environment.NewLine, diagnostics.Select(x => x.Message)));
+    }
+
     private static IReadOnlyList<BlueprintProfileDiagnostic> Check(string text)
     {
         var unit = BlueprintAuthoringParserTests.ParseText(text);
