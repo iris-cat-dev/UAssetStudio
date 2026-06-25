@@ -39,6 +39,7 @@ public static class BlueprintProfileExporter
             Name = blueprint.Name,
             ParentType = blueprint.ParentType,
             AssetPath = blueprint.AssetPath,
+            Metadata = ExportDeclarationMetadata(blueprint.Source),
             Source = ExportSource(blueprint.Source),
             Components = blueprint.Components.Select(component => ExportComponent(component, componentByName)).ToList(),
             Variables = blueprint.Variables.Select(ExportVariable).ToList(),
@@ -55,6 +56,7 @@ public static class BlueprintProfileExporter
             Type = component.Type,
             IsRoot = component.IsRoot,
             AttachTarget = component.AttachTarget,
+            Metadata = declaration != null ? ExportDeclarationMetadata(declaration) : new(),
             Source = ExportSource(component.Source),
             Properties = declaration?.ComponentProperties.Select(ExportComponentProperty).ToList() ?? new()
         };
@@ -79,6 +81,7 @@ public static class BlueprintProfileExporter
             Type = FormatType(variable.Type),
             IsEditable = variable.IsEditable,
             Category = variable.Category,
+            Metadata = ExportDeclarationMetadata(variable.Source),
             Initializer = variable.Source.Initializer != null ? ExportExpression(variable.Source.Initializer) : null,
             Source = ExportSource(variable.Source)
         };
@@ -93,6 +96,7 @@ public static class BlueprintProfileExporter
             ReturnType = FormatType(procedure.Source.ReturnType),
             EventName = procedure.EventName,
             Category = procedure.Category,
+            Metadata = ExportDeclarationMetadata(procedure.Source),
             Parameters = procedure.Source.Parameters.Select(ExportParameter).ToList(),
             Body = procedure.Source.Body != null ? ExportStatement(procedure.Source.Body) : null,
             Source = ExportSource(procedure.Source)
@@ -124,6 +128,44 @@ public static class BlueprintProfileExporter
             parts.Add("out");
 
         return parts.Count == 0 ? null : string.Join(" ", parts);
+    }
+
+    private static Dictionary<string, List<KmsBpMetadataArgumentDto>> ExportDeclarationMetadata(Declaration declaration)
+    {
+        var metadata = new Dictionary<string, List<KmsBpMetadataArgumentDto>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var decorator in declaration.Decorators)
+            AddMetadata(metadata, decorator.Identifier.Text, decorator.Arguments);
+
+        foreach (var attribute in declaration.Attributes)
+            AddMetadata(metadata, attribute.Identifier.Text, attribute.Arguments);
+
+        if (declaration is ProcedureDeclaration procedure && procedure.Modifiers.HasFlag(ProcedureModifier.Override))
+            AddMetadata(metadata, "override", Array.Empty<Argument>());
+
+        return metadata;
+    }
+
+    private static void AddMetadata(
+        Dictionary<string, List<KmsBpMetadataArgumentDto>> metadata,
+        string name,
+        IEnumerable<Argument> arguments)
+    {
+        if (!metadata.TryGetValue(name, out var values))
+        {
+            values = new List<KmsBpMetadataArgumentDto>();
+            metadata[name] = values;
+        }
+
+        values.AddRange(arguments.Select(ExportMetadataArgument));
+    }
+
+    private static KmsBpMetadataArgumentDto ExportMetadataArgument(Argument argument)
+    {
+        return new KmsBpMetadataArgumentDto
+        {
+            Value = ExportExpression(argument.Expression),
+            Source = ExportSource(argument)
+        };
     }
 
     private static KmsBpStatementDto ExportStatement(Statement statement)
@@ -252,7 +294,7 @@ public static class BlueprintProfileExporter
                 Kind = "call",
                 Name = call.Identifier.Text,
                 TypeArguments = call.TypeArguments.Select(FormatType).ToList(),
-                Arguments = call.Arguments.Select(argument => ExportExpression(argument.Expression)).ToList(),
+                Arguments = call.Arguments.Select(ExportArgument).ToList(),
                 Source = ExportSource(expression)
             },
             MemberExpression member => new KmsBpExpressionDto
@@ -349,6 +391,25 @@ public static class BlueprintProfileExporter
         };
     }
 
+    private static KmsBpArgumentDto ExportArgument(Argument argument)
+    {
+        string? name = null;
+        var expression = argument.Expression;
+        if (expression is AssignmentOperator assignment && assignment.Left is Identifier identifier)
+        {
+            name = identifier.Text;
+            expression = assignment.Right;
+        }
+
+        return new KmsBpArgumentDto
+        {
+            Name = name,
+            Modifier = argument is OutArgument ? "out" : null,
+            Expression = ExportExpression(expression),
+            Source = ExportSource(argument)
+        };
+    }
+
     private static string FormatType(TypeIdentifier type)
     {
         if (type.TypeParameters.Count == 0)
@@ -439,6 +500,7 @@ public sealed class KmsBpBlueprintDto
     public string Name { get; set; } = string.Empty;
     public string ParentType { get; set; } = string.Empty;
     public string AssetPath { get; set; } = string.Empty;
+    public Dictionary<string, List<KmsBpMetadataArgumentDto>> Metadata { get; set; } = new();
     public List<KmsBpComponentDto> Components { get; set; } = new();
     public List<KmsBpVariableDto> Variables { get; set; } = new();
     public List<KmsBpProcedureDto> Procedures { get; set; } = new();
@@ -451,6 +513,7 @@ public sealed class KmsBpComponentDto
     public string Type { get; set; } = string.Empty;
     public bool IsRoot { get; set; }
     public string? AttachTarget { get; set; }
+    public Dictionary<string, List<KmsBpMetadataArgumentDto>> Metadata { get; set; } = new();
     public List<KmsBpComponentPropertyDto> Properties { get; set; } = new();
     public KmsBpSourceDto? Source { get; set; }
 }
@@ -469,6 +532,7 @@ public sealed class KmsBpVariableDto
     public string Type { get; set; } = string.Empty;
     public bool IsEditable { get; set; }
     public string? Category { get; set; }
+    public Dictionary<string, List<KmsBpMetadataArgumentDto>> Metadata { get; set; } = new();
     public KmsBpExpressionDto? Initializer { get; set; }
     public KmsBpSourceDto? Source { get; set; }
 }
@@ -480,8 +544,15 @@ public sealed class KmsBpProcedureDto
     public string ReturnType { get; set; } = string.Empty;
     public string? EventName { get; set; }
     public string? Category { get; set; }
+    public Dictionary<string, List<KmsBpMetadataArgumentDto>> Metadata { get; set; } = new();
     public List<KmsBpParameterDto> Parameters { get; set; } = new();
     public KmsBpStatementDto? Body { get; set; }
+    public KmsBpSourceDto? Source { get; set; }
+}
+
+public sealed class KmsBpMetadataArgumentDto
+{
+    public KmsBpExpressionDto Value { get; set; } = null!;
     public KmsBpSourceDto? Source { get; set; }
 }
 
@@ -533,7 +604,7 @@ public sealed class KmsBpExpressionDto
     public string? Text { get; set; }
     public string? Op { get; set; }
     public List<string> TypeArguments { get; set; } = new();
-    public List<KmsBpExpressionDto> Arguments { get; set; } = new();
+    public List<KmsBpArgumentDto> Arguments { get; set; } = new();
     public KmsBpExpressionDto? Context { get; set; }
     public KmsBpExpressionDto? Member { get; set; }
     public KmsBpExpressionDto? Left { get; set; }
@@ -545,6 +616,14 @@ public sealed class KmsBpExpressionDto
     public KmsBpExpressionDto? Else { get; set; }
     public List<KmsBpExpressionDto> Items { get; set; } = new();
     public List<KmsBpObjectEntryDto> Entries { get; set; } = new();
+    public KmsBpSourceDto? Source { get; set; }
+}
+
+public sealed class KmsBpArgumentDto
+{
+    public string? Name { get; set; }
+    public string? Modifier { get; set; }
+    public KmsBpExpressionDto Expression { get; set; } = null!;
     public KmsBpSourceDto? Source { get; set; }
 }
 

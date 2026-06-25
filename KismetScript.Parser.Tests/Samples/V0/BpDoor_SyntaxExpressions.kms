@@ -6,6 +6,7 @@ blueprint BP_Door_Syntax : Actor at "/Game/Generated/BP_Door_Syntax_Gen" {
     callable void Exercise(Value: int, out Result: int) {
         var Local: int = Value + 1;
         var Values: Array<int> = [1, 2, 3];
+        var Config: DoorConfig = { Mode: "fast", Count: 3 };
         var LocalFloat: float = (float)Result;
         var TypeName: Type = typeof(float);
 

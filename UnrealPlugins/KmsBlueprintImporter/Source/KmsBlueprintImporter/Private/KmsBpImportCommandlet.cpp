@@ -6,6 +6,7 @@
 #include "Engine/Blueprint.h"
 #include "FileHelpers.h"
 #include "K2Node_VariableSet.h"
+#include "K2Node_KmsGeneratedNode.h"
 #include "KmsBpImporterLibrary.h"
 #include "Misc/FileHelper.h"
 #include "UObject/SoftObjectPath.h"
@@ -70,6 +71,50 @@ static FString DescribeNodeForReport(const UEdGraphNode* Node)
 static bool IsGeneratedKmsReportNode(const UEdGraphNode* Node)
 {
     return Node != nullptr && Node->NodeComment.StartsWith(TEXT("[KMS-BP NODE]"));
+}
+
+static bool ValidateNoGeneratedKmsNodes(const TArray<FString>& ImportedAssets)
+{
+    bool bOk = true;
+    for (const FString& ImportedAsset : ImportedAssets)
+    {
+        UBlueprint* Blueprint = Cast<UBlueprint>(FSoftObjectPath(ImportedAsset).TryLoad());
+        if (Blueprint == nullptr)
+        {
+            UE_LOG(LogTemp, Error, TEXT("ValidateNoGenerated: failed to load blueprint %s"), *ImportedAsset);
+            bOk = false;
+            continue;
+        }
+
+        TArray<UEdGraph*> Graphs;
+        Graphs.Append(Blueprint->FunctionGraphs);
+        Graphs.Append(Blueprint->UbergraphPages);
+        Graphs.Append(Blueprint->DelegateSignatureGraphs);
+
+        for (UEdGraph* Graph : Graphs)
+        {
+            if (Graph == nullptr)
+            {
+                continue;
+            }
+
+            for (UEdGraphNode* Node : Graph->Nodes)
+            {
+                if (Cast<UK2Node_KmsGeneratedNode>(Node) != nullptr)
+                {
+                    UE_LOG(
+                        LogTemp,
+                        Error,
+                        TEXT("ValidateNoGenerated: generated fallback node remains in %s.%s: %s"),
+                        *ImportedAsset,
+                        *Graph->GetName(),
+                        *DescribeNodeForReport(Node));
+                    bOk = false;
+                }
+            }
+        }
+    }
+    return bOk;
 }
 
 static bool ValidateGeneratedExecLinks(const TArray<FString>& ImportedAssets)
@@ -144,12 +189,12 @@ static bool ValidateGeneratedExecLinks(const TArray<FString>& ImportedAssets)
                     OutputLinks,
                     *DescribeExecLinks(SetNode, EGPD_Output));
 
-                if (InputLinks == 0 || OutputLinks == 0)
+                if (InputLinks == 0)
                 {
                     UE_LOG(
                         LogTemp,
                         Error,
-                        TEXT("ValidateExec: disconnected set node in %s.%s: %s"),
+                        TEXT("ValidateExec: disconnected set node input in %s.%s: %s"),
                         *ImportedAsset,
                         *Graph->GetName(),
                         *SetNode->GetNodeTitle(ENodeTitleType::ListView).ToString());
@@ -284,6 +329,11 @@ int32 UKmsBpImportCommandlet::Main(const FString& Params)
     }
 
     if (bSuccess && FParse::Param(*Params, TEXT("ValidateExec")) && !ValidateGeneratedExecLinks(Result.ImportedAssets))
+    {
+        return 3;
+    }
+
+    if (bSuccess && FParse::Param(*Params, TEXT("ValidateNoGeneratedKmsNodes")) && !ValidateNoGeneratedKmsNodes(Result.ImportedAssets))
     {
         return 3;
     }

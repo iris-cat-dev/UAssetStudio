@@ -86,11 +86,22 @@ public class BlueprintProfileExporterTests
         var fullBlueprint = full.Blueprints.Single();
 
         Assert.AreEqual("1", full.LanguageVersion);
+        CollectionAssert.Contains(fullBlueprint.Metadata.Keys.ToArray(), "displayName");
         Assert.IsTrue(fullBlueprint.Procedures.Any(x => x.Kind == "construction"));
         Assert.IsTrue(fullBlueprint.Procedures.Any(x => x.Kind == "dispatcher"));
 
+        var mesh = fullBlueprint.Components.Single(x => x.Name == "Mesh");
+        CollectionAssert.Contains(mesh.Metadata.Keys.ToArray(), "tag");
+
+        var isOpen = fullBlueprint.Variables.Single(x => x.Name == "IsOpen");
+        CollectionAssert.Contains(isOpen.Metadata.Keys.ToArray(), "replicated");
+        CollectionAssert.Contains(isOpen.Metadata.Keys.ToArray(), "repNotify");
+
         var beginPlayStatements = FlattenStatements(fullBlueprint.Procedures.Single(x => x.Name == "BeginPlay").Body!).Select(x => x.Kind).ToArray();
         CollectionAssert.Contains(beginPlayStatements, "bind");
+
+        var serverSetOpen = fullBlueprint.Procedures.Single(x => x.Name == "ServerSetOpen");
+        CollectionAssert.Contains(serverSetOpen.Metadata.Keys.ToArray(), "rpc");
 
         var controlFlow = BlueprintProfileExporter.Export(
             BlueprintAuthoringParserTests.ParseV1Sample("BpDoorV1_ControlFlow.kms"),
@@ -174,7 +185,7 @@ public class BlueprintProfileExporterTests
     {
         yield return expression;
 
-        foreach (var child in expression.Arguments.SelectMany(FlattenExpressions))
+        foreach (var child in expression.Arguments.SelectMany(argument => FlattenExpressions(argument.Expression)))
             yield return child;
         foreach (var child in expression.Items.SelectMany(FlattenExpressions))
             yield return child;
